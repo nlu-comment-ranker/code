@@ -46,6 +46,7 @@ class FeatureSet(object):
     original = None # comment or submission
     parent = None # reference to parent in comment tree
 
+    ##
     # Intermediate/temporary features; 
     # delete these to save memory
     vars_temp = ['sentences',
@@ -54,14 +55,15 @@ class FeatureSet(object):
                  'stemCounts',
                  'posTags']
 
+    ##
     # Core Features
     # should all be numerical (or None)
     vars_feature = ['n_chars',                    
                     'n_words',
                     'n_sentences',
                     'n_paragraphs',
-                    'SMOG',
                     'n_uppercase',
+                    'SMOG',
                     'n_verbs',
                     'n_nouns',
                     ]
@@ -122,8 +124,8 @@ class FeatureSet(object):
         - wordCounts
         """
         self.sentences = sent_tokenize(self.original.text)
-        wordgen = (word_tokenize(t) for t in self.sentences)
-        self.wordCounts = collections.Counter(itertools.chain(*wordgen))
+        self.words = [word_tokenize(t) for t in self.sentences]
+        self.wordCounts = collections.Counter(itertools.chain(*self.words))
 
     def calc_token_counts(self):
         """
@@ -145,3 +147,15 @@ class FeatureSet(object):
 
     def calc_SMOG(self):
         self.SMOG = SMOG(self.wordCounts, self.sentences)
+
+
+    def pos_tag(self, tagger=nltk.tag.pos_tag):
+        """Calculate part-of-speech tags."""
+        self.posTags = map(tagger, self.words)
+
+    def calc_nouns_verbs(self):
+        """Count all nouns and verbs, from Penn Treebank POS tags."""
+        self.n_nouns = len([w for w,t in itertools.chain(*self.posTags)
+                            if t.startswith("NN")])
+        self.n_verbs = len([w for w,t in itertools.chain(*self.posTags)
+                            if t.startswith("VB")])
