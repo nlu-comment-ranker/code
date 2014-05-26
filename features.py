@@ -75,6 +75,21 @@ def counter_entropy_normalized(c):
     cn = array(c.values())/wordcount
     return (-1/wordcount)*(sum(cn * log(cn)) - log(wordcount))
 
+##
+# Context-based features
+# operate on FeatureSet.parent (i.e. a Submission object)
+# with a list of comments to order
+def rank_comment_post_order(sub):
+    if hasattr(sub, 'comment_positions_ranked') and sub.comment_positions_ranked:
+        return
+    
+    # sort first -> last
+    sub.comments.sort(key=lambda c: c.timestamp)
+    for i,c in enumerate(sub.comments): 
+        c.position_rank = i
+    sub.comment_positions_ranked = True    
+
+
 ####################
 # FeatureSet Class #
 ####################
@@ -88,6 +103,10 @@ global_prefixer = lambda name: 'user_global_' + name
 class ActivityParseError(Exception):
     pass
 
+# Dummy class for exception handling if user or parent are missing
+class MissingDataException(Exception):
+    pass
+
 class FeatureSet(object):
     # References
     original = None # comment or submission
@@ -96,7 +115,9 @@ class FeatureSet(object):
 
     ##
     # Training Labels
-    vars_label = ['score',]
+    vars_label = ['score',
+                  'score_time_corrected',
+                  ]
 
     # To-Do: add alternative labels
     # e.g. score, corrected for post time
@@ -133,6 +154,10 @@ class FeatureSet(object):
     # To-Do: add context features
     # - Comment-submission overlap
     # - Time since submission (critical!!!)
+    vars_feature_context = ['timedelta',
+                            'position_rank',
+                            ]
+
 
     #########################################
     # User Features                         #
@@ -163,6 +188,7 @@ class FeatureSet(object):
 
     # List of all features, for convenience
     vars_feature_all = (vars_feature_text 
+                        + vars_feature_context
                         + vars_feature_user_local 
                         + vars_feature_user_global)
 
@@ -179,8 +205,8 @@ class FeatureSet(object):
         # Initialize labels, from original
         # for now, this is just 'score'
         for name in self.vars_label:
-            val = getattr(self.original, name)
-            setattr(self, name, val)
+            setattr(self, name, None)
+        self.score = self.original.score
 
         # Initialize temp vars as None
         for name in self.vars_temp:
@@ -188,6 +214,8 @@ class FeatureSet(object):
 
         # Initialize features as None
         for name in self.vars_feature_text:
+            setattr(self, name, None)
+        for name in self.vars_feature_context:
             setattr(self, name, None)
         for name in self.vars_feature_user_local:
             setattr(self, name, None)
@@ -253,6 +281,9 @@ class FeatureSet(object):
     ##
     def calc_user_activity_features(self):
         """Read in all available user activity stats."""
+        if self.user == None:
+            raise MissingDataException("FeatureSet.user not specified, unable to ")
+
         for ua in self.user.activities:
             try:
                 self._parse_UserActivity(ua)
@@ -331,3 +362,17 @@ class FeatureSet(object):
     def calc_entropy(self):
         """Calculate entropy from stemmed word distribution."""
         self.entropy = counter_entropy_normalized(self.stemCounts)
+
+
+    ####################
+    # Context Features #
+    ####################
+    def calc_post_order_features(self):
+        # Rank comments by post order
+        # memoized on parent and parent.comments
+        if self.parent == None:
+            raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
+
+        rank_comment_post_order(self.parent)
+        self.position_rank = self.original.position_rank
+        self.timedelta = (self.original.timestamp - self.parent.timestamp).total_seconds()
