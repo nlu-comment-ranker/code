@@ -18,7 +18,7 @@ import nltk
 import hyphen
 
 from numpy import linalg
-from numpy import array, sqrt, log
+from numpy import array, sqrt, log, nan
 
 ###########################
 # Static Helper Functions #
@@ -95,6 +95,13 @@ class FeatureSet(object):
     user = None # reference to user; should have activity for local (subreddit) and global (all)
 
     ##
+    # Training Labels
+    vars_label = ['score',]
+
+    # To-Do: add alternative labels
+    # e.g. score, corrected for post time
+
+    ##
     # Intermediate/temporary features; 
     # delete these to save memory
     vars_temp = ['sentences',
@@ -109,23 +116,23 @@ class FeatureSet(object):
     #####################################
     # should all be numerical (or None)
     vars_feature_text = ['n_chars',                    
-                    'n_words',
-                    'n_sentences',
-                    'n_paragraphs',
-                    'n_uppercase',
-                    'SMOG',
-                    'n_verbs',
-                    'n_nouns',
-                    'entropy',
-                    ]
+                         'n_words',
+                         'n_sentences',
+                         'n_paragraphs',
+                         'n_uppercase',
+                         'SMOG',
+                         'n_verbs',
+                         'n_nouns',
+                         'entropy',
+                         ]
     
     # To-Do: add distributional features
-    # - Entropy
     # - Informativeness
     # - Cohesion
 
     # To-Do: add context features
     # - Comment-submission overlap
+    # - Time since submission (critical!!!)
 
     #########################################
     # User Features                         #
@@ -169,6 +176,12 @@ class FeatureSet(object):
         self.parent = parent
         self.user = user
 
+        # Initialize labels, from original
+        # for now, this is just 'score'
+        for name in self.vars_label:
+            val = getattr(self.original, name)
+            setattr(self, name, val)
+
         # Initialize temp vars as None
         for name in self.vars_temp:
             setattr(self, name, None)
@@ -197,6 +210,11 @@ class FeatureSet(object):
         for name in self.vars_temp:
             setattr(self, name, None)
 
+    def to_list(self, names=vars_feature_all):
+        """Convert features to a flat list."""
+        none_to_nan = lambda x: x if x != None else nan
+        fs = [getattr(self, name) for name in names]
+        return map(none_to_nan, fs)
 
     #################
     # User Features #
@@ -207,7 +225,7 @@ class FeatureSet(object):
         """
         Load features from a UserActivity object.
         Only reads features if UserActivity is either
-        GLOBAl or for a subreddit matching original.
+        GLOBAL or for a subreddit matching original.
         If no match, throws an exception.
         """
         varnames = self.vars_user_activity
