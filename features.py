@@ -79,10 +79,20 @@ def counter_entropy_normalized(c):
 # FeatureSet Class #
 ####################
 
+# Prefixer functions; convert vars_user_activity to
+# vars_feature_user_[local/global]
+local_prefixer = lambda name: 'user_local_' + name
+global_prefixer = lambda name: 'user_global_' + name
+
+# Dummy class for exception handling when parsing user activity
+class ActivityParseError(Exception):
+    pass
+
 class FeatureSet(object):
     # References
     original = None # comment or submission
     parent = None # reference to parent in comment tree
+    user = None # reference to user; should have activity for local (subreddit) and global (all)
 
     ##
     # Intermediate/temporary features; 
@@ -93,10 +103,12 @@ class FeatureSet(object):
                  'stemCounts',
                  'posTags']
 
-    ##
-    # Core Features
+
+    #####################################
+    # Text Features                     #
+    #####################################
     # should all be numerical (or None)
-    vars_feature = ['n_chars',                    
+    vars_feature_text = ['n_chars',                    
                     'n_words',
                     'n_sentences',
                     'n_paragraphs',
@@ -115,10 +127,39 @@ class FeatureSet(object):
     # To-Do: add context features
     # - Comment-submission overlap
 
-    # To-Do: add user features
-    # from Sammy's code; should be in DB
+    #########################################
+    # User Features                         #
+    #########################################
+    # names exactly as in commentDB.py,
+    # and as stored in DB, so should be
+    # able to extract automatically from
+    # UserActivity object using getattr()
+    vars_user_activity = ['comment_count',
+                          'comment_pos_karma',
+                          'comment_neg_karma',
+                          'comment_net_karma',
+                          'comment_avg_pos_karma',
+                          'comment_avg_neg_karma',
+                          'comment_avg_net_karma',
+                          'sub_count',
+                          'sub_pos_karma',
+                          'sub_neg_karma',
+                          'sub_net_karma',
+                          'sub_avg_pos_karma',
+                          'sub_avg_neg_karma',
+                          'sub_avg_net_karma',
+                          ]
+    # Separate lists for global, local user activity
+    # (for now, same variables in each)
+    vars_feature_user_local = map(local_prefixer, vars_user_activity)
+    vars_feature_user_global = map(global_prefixer, vars_user_activity)
 
-    def __init__(self, original, parent=None):
+    # List of all features, for convenience
+    vars_feature_all = (vars_feature_text 
+                        + vars_feature_user_local 
+                        + vars_feature_user_global)
+
+    def __init__(self, original, parent=None, user=None):
         """
         Basic constructor. Initializes references 
         to comment object (original) and parent,
@@ -126,13 +167,20 @@ class FeatureSet(object):
         """
         self.original = original
         self.parent = parent
+        self.user = user
 
         # Initialize temp vars as None
         for name in self.vars_temp:
             setattr(self, name, None)
+
         # Initialize features as None
-        for name in self.vars_feature:
+        for name in self.vars_feature_text:
             setattr(self, name, None)
+        for name in self.vars_feature_user_local:
+            setattr(self, name, None)
+        for name in self.vars_feature_user_local:
+            setattr(self, name, None)
+
 
 
     def __repr__(self):
@@ -148,6 +196,56 @@ class FeatureSet(object):
         """
         for name in self.vars_temp:
             setattr(self, name, None)
+
+
+    #################
+    # User Features #
+    #################
+
+    # Internal helper function
+    def _parse_UserActivity(self, ua):
+        """
+        Load features from a UserActivity object.
+        Only reads features if UserActivity is either
+        GLOBAl or for a subreddit matching original.
+        If no match, throws an exception.
+        """
+        varnames = self.vars_user_activity
+        if ua.subreddit_id == "GLOBAL":
+            # Global (all of reddit)
+            name_prefixer = global_prefixer
+        elif ua.subreddit_id == self.original.subreddit_id:
+            # Local (matching this comment)
+            name_prefixer = local_prefixer
+        else: 
+            msg = "Error: subreddit id \"%s\" does not match expected (GLOBAL or \"%s\"." % (ua.subreddit_id, self.original.subreddit_id)
+            raise ActivityParseError(msg)
+
+        # Copy values by name, automagically!
+        for name in varnames:
+            val = getattr(ua, name)
+            target = name_prefixer(name)
+            # print "DEBUG: setting %s -> %s" % (target, repr(val))
+            setattr(self, target, val)
+
+
+    ##
+    # TO-DO: Make this robust to missing user data,
+    # i.e. if a user object given but no activity data
+    ##
+    def calc_user_activity_features(self):
+        """Read in all available user activity stats."""
+        for ua in self.user.activities:
+            try:
+                self._parse_UserActivity(ua)
+            except ActivityParseError as p:
+                # For now, ignore other subreddits
+                print str(p),
+                print " : ignoring activity for %s on %s" % (ua.user_name, ua.subreddit_name)
+
+    #################
+    # Text features #
+    #################
 
     # Use default tokenizers:
     # PunktSentenceTokenizer (pre-trained) for sentences
