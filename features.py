@@ -46,7 +46,7 @@ def counter_dot_product(c1,c2, norm=False):
     If norm=True, then will normalize each before computing,
     to yield the cosine distance."""
     c1_f = {k:v for k,v in c1.items() if k in c2}
-    c2_f = {k:v for k,v in c1.items() if k in c1}
+    c2_f = {k:v for k,v in c2.items() if k in c1}
     dp = sum([c1_f[k]*c2_f[k] for k in c1_f.keys()])
     if norm == True:
         nc = linalg.norm(c1.values()) * linalg.norm(c2.values())
@@ -79,16 +79,37 @@ def counter_entropy_normalized(c):
 # Context-based features
 # operate on FeatureSet.parent (i.e. a Submission object)
 # with a list of comments to order
-def rank_comment_post_order(sub):
-    if hasattr(sub, 'comment_positions_ranked') and sub.comment_positions_ranked:
+def rank_comments(sub):
+    if hasattr(sub, 'comments_ranked') and sub.comments_ranked:
         return
     
-    # sort first -> last
+    # Rank comments by timestamp: get position_rank
     sub.comments.sort(key=lambda c: c.timestamp)
     for i,c in enumerate(sub.comments): 
         c.position_rank = i
-    sub.comment_positions_ranked = True    
 
+    # Rank comments by score, high -> low
+    # get score rank
+    sub.comments.sort(key=lambda c: c.score, reverse=True)
+    for i,c in enumerate(sub.comments): 
+        c.score_rank = i
+
+    sub.comments_ranked = True    
+
+def attach_token_stem_features(obj):
+    """
+    Generate a FeatureSet containing stemmed token vector,
+    and attach it to the given object.
+    Used e.g. to compute word vector for a submission, for 
+    later reference by comments in calculating similarity.
+    """
+    if hasattr(obj, 'featureSet'):
+        return
+
+    f = FeatureSet(obj)
+    f.tokenize()
+    f.stem()
+    obj.featureSet = f
 
 ####################
 # FeatureSet Class #
@@ -116,7 +137,7 @@ class FeatureSet(object):
     ##
     # Training Labels
     vars_label = ['score',
-                  'score_time_corrected',
+                  'score_rank',
                   ]
 
     # To-Do: add alternative labels
@@ -151,11 +172,11 @@ class FeatureSet(object):
     # - Informativeness
     # - Cohesion
 
-    # To-Do: add context features
-    # - Comment-submission overlap
-    # - Time since submission (critical!!!)
+    ##
+    # Context-based features (comment-submission)
     vars_feature_context = ['timedelta',
                             'position_rank',
+                            'parent_term_overlap',
                             ]
 
 
@@ -213,14 +234,16 @@ class FeatureSet(object):
             setattr(self, name, None)
 
         # Initialize features as None
-        for name in self.vars_feature_text:
+        for name in self.vars_feature_all:
             setattr(self, name, None)
-        for name in self.vars_feature_context:
-            setattr(self, name, None)
-        for name in self.vars_feature_user_local:
-            setattr(self, name, None)
-        for name in self.vars_feature_user_local:
-            setattr(self, name, None)
+        # for name in self.vars_feature_text:
+        #     setattr(self, name, None)
+        # for name in self.vars_feature_context:
+        #     setattr(self, name, None)
+        # for name in self.vars_feature_user_local:
+        #     setattr(self, name, None)
+        # for name in self.vars_feature_user_global:
+        #     setattr(self, name, None)
 
 
 
@@ -238,7 +261,7 @@ class FeatureSet(object):
         for name in self.vars_temp:
             setattr(self, name, None)
 
-    def to_list(self, names=vars_feature_all):
+    def to_list(self, names=(vars_feature_all+vars_label)):
         """Convert features to a flat list."""
         none_to_nan = lambda x: x if x != None else nan
         fs = [getattr(self, name) for name in names]
@@ -367,12 +390,40 @@ class FeatureSet(object):
     ####################
     # Context Features #
     ####################
-    def calc_post_order_features(self):
-        # Rank comments by post order
-        # memoized on parent and parent.comments
+    def calc_parent_rank_features(self):
+        """
+        Compute ranking features based on parent.
+        - score_rank (label)
+        - position_rank
+        - timedelta
+
+        Rankings are computed once for each parent,
+        and memoized on self.parent and self.original
+        """
         if self.parent == None:
             raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
 
-        rank_comment_post_order(self.parent)
+        rank_comments(self.parent)
+        self.score_rank = self.original.score_rank
         self.position_rank = self.original.position_rank
         self.timedelta = (self.original.timestamp - self.parent.timestamp).total_seconds()
+
+    def gen_parent_tokens(self):
+        """Generate and attach a FeatureSet to the parent object,
+        consisting of token sets only."""
+        if self.parent == None:
+            raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
+        attach_token_stem_features(self.parent)
+
+    def calc_parent_overlap(self):
+        """Compute term vector overlap with parent."""
+        if self.parent == None:
+            raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
+        elif not hasattr(self.parent, 'featureSet'):
+            raise MissingDataException("FeatureSet.parent.featureSet not specified, unable to calculate context features.")
+
+        # Compute cosine similarity
+        cs = counter_dot_product(self.stemCounts, 
+                                 self.parent.featureSet.stemCounts, 
+                                 norm=True)
+        self.parent_term_overlap = cs
