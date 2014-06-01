@@ -10,15 +10,21 @@
 # May 24, 2014
 ##
 
-import collections
+# import collections
+from collections import Counter
 import itertools
 import time
+import sys
 
 import nltk
 import hyphen
+import re
 
 from numpy import linalg
 from numpy import array, sqrt, log, nan
+
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
 
 ###########################
 # Static Helper Functions #
@@ -31,7 +37,7 @@ def is_polysyllabic(w, hyphenator=hyphen.Hyphenator('en_US')):
     return (len(hyphenator.syllables(unicode(w))) >= 3)
 
 def SMOG(words, sentences):
-    if type(words) == collections.Counter:
+    if type(words) == Counter:
         npoly = sum([c for w,c in words.items() if is_polysyllabic(w)])
     else: # words as list
         npoly = len(filter(words,is_polysyllabic))
@@ -111,6 +117,106 @@ def attach_token_stem_features(obj):
     f.stem()
     obj.featureSet = f
 
+def init_featureset(obj):
+    if hasattr(obj, 'featureSet'):
+        return
+    obj.featureSet = FeatureSet(obj)
+
+
+######################
+# Vector Space Model #
+######################
+
+class VSM(object):
+    # Tokenizers for input
+    sent_tokenize = nltk.tokenize.sent_tokenize
+    word_tokenize = nltk.tokenize.word_tokenize
+    stemmer = nltk.stem.porter.PorterStemmer()
+
+    vectorizer = None
+    tfidf_transformer = None
+
+    @staticmethod
+    def wordfilter(word):
+        """Crude filter to skip punctuation and URLs
+        Note that this leaves in the 'http' token, which
+        can still be used as a proxy for URLs."""
+        if len(word) < 2: return False
+        if "www" in word: return False
+    #     if not a.isalpha(): return False
+        return True
+
+    @staticmethod
+    def tokenizer(text, wf=wordfilter):
+        sentences = sent_tokenize(text)
+        words = (word_tokenize(s) for s in sentences) # lazy generator
+        # To-Do: make this filtering more robust, add special tokens / transform
+        words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
+        return [stemmer.stem(w) for w in words_filtered]
+
+    ##
+    # Data
+    featureList = None # FeatureSet objects
+    parentFeatureList = None # Parent FeatureSet objects
+
+    texts = None # comment texts
+    parent_texts = None # parent texts
+
+    # Global VSM (big sparse matricies)
+    vsMatrix = None
+    tfidfMatrix = None
+
+    def __init__(self, commentFeatures):
+        self.featureList = featureList
+
+        # All comment texts
+        self.texts = [f.original.text for f in self.featureList]
+        
+        # Collect unique parents
+        parents_unique = list({f.parent for f in self.featureList})
+        for p in parents_unique: 
+            init_featureset(p)
+        self.parentFeatureList = [p.featureList for p in parents_unique]
+        
+        # All parent texts
+        self.parent_texts = [p.original.text for p in self.parentFeatureList]
+
+    def index_featuresets(self):
+        """Tag all featuresets with a reference to this VSM,
+        and a row index for accessing vsMatrix, tfidfMatrix, etc."""
+        # Tag each featureSet with index into VSM
+        allfeatures = self.featureList + self.parentFeatureList
+        for i,f in enumerate(allfeatures):
+            f.VSM = self # store reference to VSM
+            f.vsIndex = i # store row index
+
+
+    def build_VSM(self, tokenizer=tokenizer, **voptions):
+        """Generate a VSM in sparse matrix format, 
+        consisting of word frequencies for each text."""
+        self.vectorizer = CountVectorizer(tokenizer=tokenizer,
+                                          **voptions)
+
+        # Concatenate texts to build global VSM
+        t0 = time.time()
+        print >> sys.stderr, "Building VSM...",
+        alltexts = self.texts + self.parent_texts
+        self.vsMatrix = self.vectorizer.fit_transform(alltexts)
+        print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
+
+
+    def build_TFIDF(self, **toptions):
+        # Init
+        self.tfidf_transformer = TfidfTransformer(**toptions)
+
+        # Fit
+        t0 = time.time()
+        print >> sys.stderr, "Fitting TFIDF...",
+        self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.vsMatrix)
+        print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
+
+
+
 ####################
 # FeatureSet Class #
 ####################
@@ -150,6 +256,7 @@ class FeatureSet(object):
                  'words',
                  'wordCounts',
                  'stemCounts',
+                 'stemCounts_tfidf',
                  'posTags']
 
 
@@ -319,6 +426,12 @@ class FeatureSet(object):
     # Text features #
     #################
 
+    ##
+    # TO-DO:
+    # - skip URLs and other non-words
+    #   - even better, separate out + count! (-> use as feature)
+    # - strip markdown punctuation (e.g. **word)
+
     # Use default tokenizers:
     # PunktSentenceTokenizer (pre-trained) for sentences
     # TreebankWordTokenizer for words (per-sentence)
@@ -334,7 +447,7 @@ class FeatureSet(object):
         """
         self.sentences = sent_tokenize(self.original.text)
         self.words = [word_tokenize(t) for t in self.sentences]
-        self.wordCounts = collections.Counter(itertools.chain(*self.words))
+        self.wordCounts = Counter(itertools.chain(*self.words))
 
     def calc_token_counts(self):
         """
