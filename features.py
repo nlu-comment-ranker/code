@@ -209,9 +209,11 @@ class FeatureSet(object):
     user = None # reference to user; should have activity for local (subreddit) and global (all)
 
     ##
-    # Training Labels
+    # Training Labels and Metadata
     vars_label = ['score',
                   'score_rank',
+                  'self_id',
+                  'parent_id',
                   ]
 
     # To-Do: add alternative labels
@@ -302,7 +304,12 @@ class FeatureSet(object):
         # for now, this is just 'score'
         for name in self.vars_label:
             setattr(self, name, None)
-        self.score = self.original.score
+        self.score = self.original.score # raw score
+        
+        if hasattr(self.original, "com_id"):
+            self.self_id = self.original.com_id # comment ID
+        elif hasattr(self.original, "sub_id"):
+            self.self_id = self.original.sub_id # submission ID
 
         # Initialize temp vars as None
         for name in self.vars_temp:
@@ -471,11 +478,20 @@ class FeatureSet(object):
         - position_rank
         - timedelta
 
+        Also store:
+        - sub_id
+
         Rankings are computed once for each parent,
         and memoized on self.parent and self.original
         """
         if self.parent == None:
             raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
+
+        # Set parent ID
+        if hasattr(self.parent, "sub_id"):
+            self.parent_id = self.parent.sub_id # submission (parent) ID
+        elif hasattr(self.parent, "com_id"):
+            self.parent_id = self.parent.com_id # comment (parent) ID
 
         rank_comments(self.parent)
         self.score_rank = self.original.score_rank
