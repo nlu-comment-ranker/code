@@ -51,6 +51,8 @@ def SMOG(words, sentences):
 def entropy_normalized(v):
     """Calculate the length-normalized entropy 
     of a (sparse) word distribution vector."""
+    if v.nnz < 1: return 0 # in case of empty comment
+
     vnz = array(v[v.nonzero()]).reshape((-1,)) # ensure 1D
     Z = 1.0*sum(vnz)
     vdist = vnz / Z
@@ -166,11 +168,11 @@ class VSM(object):
                                           **voptions)
 
         # Concatenate texts to build global VSM
-        t0 = time.time()
-        print >> sys.stderr, "Building VSM...",
+        # t0 = time.time()
+        # print >> sys.stderr, "Building VSM...",
         alltexts = self.texts + self.parent_texts
         self.wcMatrix = self.vectorizer.fit_transform(alltexts)
-        print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
+        # print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
 
     def build_TFIDF(self, **toptions):
@@ -178,10 +180,10 @@ class VSM(object):
         self.tfidf_transformer = TfidfTransformer(**toptions)
 
         # Fit
-        t0 = time.time()
-        print >> sys.stderr, "Computing TFIDF...",
+        # t0 = time.time()
+        # print >> sys.stderr, "Computing TFIDF...",
         self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.wcMatrix)
-        print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
+        # print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
 
 
