@@ -107,9 +107,25 @@ def main(options):
 
     # Generate featuresets
     t0 = time.time()
-    print ("Loading comments for %d submissions..." % sub_query.count()),
-    featureSets = [features.FeatureSet(c, user=c.user, parent=c.submission) for c in comment_gen]
-    print " loaded %d in %.02g seconds." % (len(featureSets), time.time() - t0)
+    print ("== Loading comments for %d submissions ==" % sub_query.count())
+    featureSets = []
+    
+    t1 = time.time()
+    counter = 0
+    printevery = min(4000,int(0.8*sub_query.count()))
+    for c in comment_gen:
+        fs = features.FeatureSet(c, user=c.user, parent=c.submission)
+        featureSets.append(fs)
+
+        # Progress indicator
+        counter += 1
+        if counter % printevery == 0:
+            temp = t1
+            t1 = time.time()
+            print "  last %d: %.02f s (%d loaded)" % (printevery, (t1 - temp), counter)
+
+    # featureSets = [features.FeatureSet(c, user=c.user, parent=c.submission) for c in comment_gen]
+    print "== Loaded %d comments in %.02g seconds ==" % (len(featureSets), time.time() - t0)
 
     # Build VSM
     vsmTag_global = "_global"
