@@ -46,25 +46,26 @@ def SMOG(words, sentences):
     return grade
 
 ##
-# Distributional models (DEPRECATED)
-def counter_dot_product(c1,c2, norm=False):
-    """Compute the dot product of two sparse vectors (as dicts).
-    If norm=True, then will normalize each before computing,
-    to yield the cosine distance."""
-    c1_f = {k:v for k,v in c1.items() if k in c2}
-    c2_f = {k:v for k,v in c2.items() if k in c1}
-    dp = sum([c1_f[k]*c2_f[k] for k in c1_f.keys()])
-    if norm == True:
-        nc = linalg.norm(c1.values()) * linalg.norm(c2.values())
-    else: nc = 1.0
-    return dp/nc
+# Distributional models
+
+# def counter_dot_product(c1,c2, norm=False):
+#     """Compute the dot product of two sparse vectors (as dicts).
+#     If norm=True, then will normalize each before computing,
+#     to yield the cosine distance."""
+#     c1_f = {k:v for k,v in c1.items() if k in c2}
+#     c2_f = {k:v for k,v in c2.items() if k in c1}
+#     dp = sum([c1_f[k]*c2_f[k] for k in c1_f.keys()])
+#     if norm == True:
+#         nc = linalg.norm(c1.values()) * linalg.norm(c2.values())
+#     else: nc = 1.0
+#     return dp/nc
 
 
-def counter_L1_norm(c):
-    """Normalize a counter by sum of elements, 
-    i.e. to convert to a probability distribution."""
-    total = sum(c.values())
-    return {k:(v*1.0/total) for k,v in c.items()}
+# def counter_L1_norm(c):
+#     """Normalize a counter by sum of elements, 
+#     i.e. to convert to a probability distribution."""
+#     total = sum(c.values())
+#     return {k:(v*1.0/total) for k,v in c.items()}
 
 def entropy_normalized(v):
     """Calculate the length-normalized entropy 
@@ -73,6 +74,12 @@ def entropy_normalized(v):
     Z = 1.0*sum(vnz)
     vdist = vnz / Z
     return (-1/Z)*( sum(vdist*log(vdist)) - log(Z) )
+
+def sparse_row_cosine_distance(v1,v2):
+    """Compute the cosine distance between two sparse row vectors."""
+    dp = (v1 * v2.T)[0,0]
+    norm = sqrt(1.0*(v1 * v1.T)*(v2 * v2.T))[0,0]
+    return (dp / norm if norm != 0 else 0)
 
 ##
 # Context-based features
@@ -479,9 +486,13 @@ class FeatureSet(object):
     # Distributional features
     # requires an associated VSM matching tag
 
-    def calc_entropy(self, vsmTag=""):
+    def getVSMfromTag(self, vsmTag=""):
         vsm = getattr(self, "VSM"+vsmTag) # vsm
         i = getattr(self, "vsIndex"+vsmTag) # index
+        return vsm, i
+
+    def calc_entropy(self, vsmTag=""):
+        vsm, i = self.getVSMfromTag(vsmTag)
 
         # Calculate entropy from wcMatrix[i]
         self.entropy = entropy_normalized(vsm.wcMatrix[i])
@@ -514,15 +525,32 @@ class FeatureSet(object):
             raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
         attach_token_stem_features(self.parent)
 
-    def calc_parent_overlap(self):
-        """Compute term vector overlap with parent."""
+    def calc_parent_overlap(self, vsmTag="", matrix="tfidfMatrix"):
         if self.parent == None:
             raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
         elif not hasattr(self.parent, 'featureSet'):
             raise MissingDataException("FeatureSet.parent.featureSet not specified, unable to calculate context features.")
 
-        # Compute cosine similarity
-        cs = counter_dot_product(self.stemCounts, 
-                                 self.parent.featureSet.stemCounts, 
-                                 norm=True)
-        self.parent_term_overlap = cs
+        vsm, i = self.getVSMfromTag(vsmTag)
+        _, parent_i = self.parent.featureSet.getVSMfromTag(vsmTag)
+        vsMatrix = getattr(vsm, matrix)
+
+        v = vsMatrix[i]
+        p = vsMatrix[parent_i]
+        overlap = sparse_row_cosine_distance(v,p)
+
+        self.parent_term_overlap = overlap
+
+
+    # def calc_parent_overlap(self):
+    #     """Compute term vector overlap with parent."""
+    #     if self.parent == None:
+    #         raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
+    #     elif not hasattr(self.parent, 'featureSet'):
+    #         raise MissingDataException("FeatureSet.parent.featureSet not specified, unable to calculate context features.")
+
+    #     # Compute cosine similarity
+    #     cs = counter_dot_product(self.stemCounts, 
+    #                              self.parent.featureSet.stemCounts, 
+    #                              norm=True)
+    #     self.parent_term_overlap = cs
