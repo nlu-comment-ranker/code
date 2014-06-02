@@ -48,25 +48,6 @@ def SMOG(words, sentences):
 ##
 # Distributional models
 
-# def counter_dot_product(c1,c2, norm=False):
-#     """Compute the dot product of two sparse vectors (as dicts).
-#     If norm=True, then will normalize each before computing,
-#     to yield the cosine distance."""
-#     c1_f = {k:v for k,v in c1.items() if k in c2}
-#     c2_f = {k:v for k,v in c2.items() if k in c1}
-#     dp = sum([c1_f[k]*c2_f[k] for k in c1_f.keys()])
-#     if norm == True:
-#         nc = linalg.norm(c1.values()) * linalg.norm(c2.values())
-#     else: nc = 1.0
-#     return dp/nc
-
-
-# def counter_L1_norm(c):
-#     """Normalize a counter by sum of elements, 
-#     i.e. to convert to a probability distribution."""
-#     total = sum(c.values())
-#     return {k:(v*1.0/total) for k,v in c.items()}
-
 def entropy_normalized(v):
     """Calculate the length-normalized entropy 
     of a (sparse) word distribution vector."""
@@ -101,21 +82,6 @@ def rank_comments(sub):
         c.score_rank = i
 
     sub.comments_ranked = True    
-
-def attach_token_stem_features(obj):
-    """
-    Generate a FeatureSet containing stemmed token vector,
-    and attach it to the given object.
-    Used e.g. to compute word vector for a submission, for 
-    later reference by comments in calculating similarity.
-    """
-    if hasattr(obj, 'featureSet'):
-        return
-
-    f = FeatureSet(obj)
-    f.tokenize()
-    f.stem()
-    obj.featureSet = f
 
 def init_featureset(obj):
     if hasattr(obj, 'featureSet'):
@@ -191,8 +157,6 @@ class VSM(object):
             belong to multiple VSMs"""
             setattr(f, "VSM"+tag, self) # store reference to VSM
             setattr(f, "vsIndex"+tag, i) # store row index
-            # f.VSM = self # store reference to VSM
-            # f.vsIndex = i # store row index
 
 
     def build_VSM(self, tokenizer=default_tokenizer, **voptions):
@@ -518,12 +482,6 @@ class FeatureSet(object):
         self.position_rank = self.original.position_rank
         self.timedelta = (self.original.timestamp - self.parent.timestamp).total_seconds()
 
-    def gen_parent_tokens(self):
-        """Generate and attach a FeatureSet to the parent object,
-        consisting of token sets only."""
-        if self.parent == None:
-            raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
-        attach_token_stem_features(self.parent)
 
     def calc_parent_overlap(self, vsmTag="", matrix="tfidfMatrix"):
         if self.parent == None:
@@ -541,16 +499,3 @@ class FeatureSet(object):
 
         self.parent_term_overlap = overlap
 
-
-    # def calc_parent_overlap(self):
-    #     """Compute term vector overlap with parent."""
-    #     if self.parent == None:
-    #         raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
-    #     elif not hasattr(self.parent, 'featureSet'):
-    #         raise MissingDataException("FeatureSet.parent.featureSet not specified, unable to calculate context features.")
-
-    #     # Compute cosine similarity
-    #     cs = counter_dot_product(self.stemCounts, 
-    #                              self.parent.featureSet.stemCounts, 
-    #                              norm=True)
-    #     self.parent_term_overlap = cs
