@@ -46,7 +46,7 @@ def SMOG(words, sentences):
     return grade
 
 ##
-# Distributional models
+# Distributional models (DEPRECATED)
 def counter_dot_product(c1,c2, norm=False):
     """Compute the dot product of two sparse vectors (as dicts).
     If norm=True, then will normalize each before computing,
@@ -66,20 +66,13 @@ def counter_L1_norm(c):
     total = sum(c.values())
     return {k:(v*1.0/total) for k,v in c.items()}
 
-def counter_entropy(c):
-    """Basic entropy, treating counter as a 
-    fully-specified multinomial distribution."""
-    cn = array(counter_to_distribution(c).values())
-    return -1*sum(cn * log(cn))
-
-def counter_entropy_normalized(c):
-    """
-    Calculate the entropy of a word counter.
-    Normalized by total word count, as in Hsu, et al.
-    """
-    wordcount = 1.0*sum(c.values())
-    cn = array(c.values())/wordcount
-    return (-1/wordcount)*(sum(cn * log(cn)) - log(wordcount))
+def entropy_normalized(v):
+    """Calculate the length-normalized entropy 
+    of a (sparse) word distribution vector."""
+    vnz = array(v[v.nonzero()]).reshape((-1,)) # ensure 1D
+    Z = 1.0*sum(vnz)
+    vdist = vnz / Z
+    return (-1/Z)*( sum(vdist*log(vdist)) - log(Z) )
 
 ##
 # Context-based features
@@ -163,7 +156,7 @@ class VSM(object):
     parent_texts = None # parent texts
 
     # Global VSM (big sparse matricies)
-    vsMatrix = None
+    wcMatrix = None
     tfidfMatrix = None
 
     def __init__(self, featureSets):
@@ -183,7 +176,7 @@ class VSM(object):
 
     def index_featuresets(self, tag=""):
         """Tag all featuresets with a reference to this VSM,
-        and a row index for accessing vsMatrix, tfidfMatrix, etc."""
+        and a row index for accessing wcMatrix, tfidfMatrix, etc."""
         # Tag each featureSet with index into VSM
         allfeatures = self.featureSets + self.parentFeatureSets
         for i,f in enumerate(allfeatures):
@@ -205,7 +198,7 @@ class VSM(object):
         t0 = time.time()
         print >> sys.stderr, "Building VSM...",
         alltexts = self.texts + self.parent_texts
-        self.vsMatrix = self.vectorizer.fit_transform(alltexts)
+        self.wcMatrix = self.vectorizer.fit_transform(alltexts)
         print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
 
@@ -216,7 +209,7 @@ class VSM(object):
         # Fit
         t0 = time.time()
         print >> sys.stderr, "Computing TFIDF...",
-        self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.vsMatrix)
+        self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.wcMatrix)
         print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
 
@@ -483,17 +476,15 @@ class FeatureSet(object):
 
 
     ##
-    # Stemming, and distributional features
-    # (requires: tokenize())
-    # - entropy
-    #
-    def stem(self, stemmer=nltk.stem.porter.PorterStemmer()):
-        self.stemCounts = {stemmer.stem(k):v for k,v in self.wordCounts.items()}
+    # Distributional features
+    # requires an associated VSM matching tag
 
-    def calc_entropy(self):
-        """Calculate entropy from stemmed word distribution."""
-        self.entropy = counter_entropy_normalized(self.stemCounts)
+    def calc_entropy(self, vsmTag=""):
+        vsm = getattr(self, "VSM"+vsmTag) # vsm
+        i = getattr(self, "vsIndex"+vsmTag) # index
 
+        # Calculate entropy from wcMatrix[i]
+        self.entropy = entropy_normalized(vsm.wcMatrix[i])
 
     ####################
     # Context Features #
