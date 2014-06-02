@@ -127,37 +127,37 @@ def init_featureset(obj):
 # Vector Space Model #
 ######################
 
+# Tokenizers for input
+sent_tokenize = nltk.tokenize.sent_tokenize
+word_tokenize = nltk.tokenize.word_tokenize
+stemmer = nltk.stem.porter.PorterStemmer()
+
+def wordfilter(word):
+    """Crude filter to skip punctuation and URLs
+    Note that this leaves in the 'http' token, which
+    can still be used as a proxy for URLs."""
+    if len(word) < 2: return False
+    if "www" in word: return False
+    # if not a.isalpha(): return False
+    return True
+
+def default_tokenizer(text, wf=wordfilter):
+    sentences = sent_tokenize(text)
+    words = (word_tokenize(s) for s in sentences) # lazy generator
+    # To-Do: make this filtering more robust, add special tokens / transform
+    words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
+    return [stemmer.stem(w) for w in words_filtered]
+
+
 class VSM(object):
-    # Tokenizers for input
-    sent_tokenize = nltk.tokenize.sent_tokenize
-    word_tokenize = nltk.tokenize.word_tokenize
-    stemmer = nltk.stem.porter.PorterStemmer()
 
     vectorizer = None
     tfidf_transformer = None
 
-    @staticmethod
-    def wordfilter(word):
-        """Crude filter to skip punctuation and URLs
-        Note that this leaves in the 'http' token, which
-        can still be used as a proxy for URLs."""
-        if len(word) < 2: return False
-        if "www" in word: return False
-    #     if not a.isalpha(): return False
-        return True
-
-    @staticmethod
-    def tokenizer(text, wf=wordfilter):
-        sentences = sent_tokenize(text)
-        words = (word_tokenize(s) for s in sentences) # lazy generator
-        # To-Do: make this filtering more robust, add special tokens / transform
-        words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
-        return [stemmer.stem(w) for w in words_filtered]
-
     ##
     # Data
-    featureList = None # FeatureSet objects
-    parentFeatureList = None # Parent FeatureSet objects
+    featureSets = None # FeatureSet objects
+    parentFeatureSets = None # Parent FeatureSet objects
 
     texts = None # comment texts
     parent_texts = None # parent texts
@@ -166,32 +166,36 @@ class VSM(object):
     vsMatrix = None
     tfidfMatrix = None
 
-    def __init__(self, commentFeatures):
-        self.featureList = featureList
+    def __init__(self, featureSets):
+        self.featureSets = featureSets
 
         # All comment texts
-        self.texts = [f.original.text for f in self.featureList]
+        self.texts = [f.original.text for f in self.featureSets]
         
         # Collect unique parents
-        parents_unique = list({f.parent for f in self.featureList})
+        parents_unique = list({f.parent for f in self.featureSets})
         for p in parents_unique: 
             init_featureset(p)
-        self.parentFeatureList = [p.featureList for p in parents_unique]
+        self.parentFeatureSets = [p.featureSet for p in parents_unique]
         
         # All parent texts
-        self.parent_texts = [p.original.text for p in self.parentFeatureList]
+        self.parent_texts = [p.original.text for p in self.parentFeatureSets]
 
-    def index_featuresets(self):
+    def index_featuresets(self, tag=""):
         """Tag all featuresets with a reference to this VSM,
         and a row index for accessing vsMatrix, tfidfMatrix, etc."""
         # Tag each featureSet with index into VSM
-        allfeatures = self.featureList + self.parentFeatureList
+        allfeatures = self.featureSets + self.parentFeatureSets
         for i,f in enumerate(allfeatures):
-            f.VSM = self # store reference to VSM
-            f.vsIndex = i # store row index
+            """Store with custom tag, to allow a featureSet to
+            belong to multiple VSMs"""
+            setattr(f, "VSM"+tag, self) # store reference to VSM
+            setattr(f, "vsIndex"+tag, i) # store row index
+            # f.VSM = self # store reference to VSM
+            # f.vsIndex = i # store row index
 
 
-    def build_VSM(self, tokenizer=tokenizer, **voptions):
+    def build_VSM(self, tokenizer=default_tokenizer, **voptions):
         """Generate a VSM in sparse matrix format, 
         consisting of word frequencies for each text."""
         self.vectorizer = CountVectorizer(tokenizer=tokenizer,
@@ -211,7 +215,7 @@ class VSM(object):
 
         # Fit
         t0 = time.time()
-        print >> sys.stderr, "Fitting TFIDF...",
+        print >> sys.stderr, "Computing TFIDF...",
         self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.vsMatrix)
         print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
@@ -343,15 +347,6 @@ class FeatureSet(object):
         # Initialize features as None
         for name in self.vars_feature_all:
             setattr(self, name, None)
-        # for name in self.vars_feature_text:
-        #     setattr(self, name, None)
-        # for name in self.vars_feature_context:
-        #     setattr(self, name, None)
-        # for name in self.vars_feature_user_local:
-        #     setattr(self, name, None)
-        # for name in self.vars_feature_user_global:
-        #     setattr(self, name, None)
-
 
 
     def __repr__(self):
