@@ -63,7 +63,11 @@ def processFeatureSet(f, options, vsmTag_global="_global"):
     
     # This won't run unless user data is available
     if options.f_user:
-        f.calc_user_activity_features()
+        try:
+            f.calc_user_activity_features()
+            print >> options.logfile, "Loaded user for %s (user %s)" % (f.self_id, f.user.name)
+        except features.MissingDataException as e:
+            print >> options.logfile, "Missing user data for %s" % (f.self_id)
 
     f.calc_parent_rank_features()
     
@@ -112,7 +116,7 @@ def main(options):
     
     t1 = time.time()
     counter = 0
-    printevery = min(4000,int(0.8*sub_query.count()))
+    printevery = max(500, min(4000,int(0.8*sub_query.count())))
     for c in comment_gen:
         fs = features.FeatureSet(c, user=c.user, parent=c.submission)
         featureSets.append(fs)
@@ -192,7 +196,15 @@ if __name__ == '__main__':
                         type=int, default=-1,
                         help="Number of submissions to include. If -1 (default), includes all subs.")
 
+    parser.add_argument('--logfile', 
+                        dest='logfile', 
+                        default=sys.stderr,
+                        help="Filename for logging output")
+
     options = parser.parse_args()
+
+    if type(options.logfile) == str:
+        options.logfile = open(options.logfile, 'w')
 
     # main(options)
 

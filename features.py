@@ -214,6 +214,7 @@ class FeatureSet(object):
     # Training Labels and Metadata
     vars_label = ['score',
                   'score_rank',
+                  'parent_score',
                   'self_id',
                   'parent_id',
                   ]
@@ -496,6 +497,7 @@ class FeatureSet(object):
             self.parent_id = self.parent.com_id # comment (parent) ID
 
         rank_comments(self.parent)
+        self.parent_score = self.parent.score
         self.score_rank = self.original.score_rank
         self.position_rank = self.original.position_rank
         self.timedelta = (self.original.timestamp - self.parent.timestamp).total_seconds()
