@@ -3,6 +3,7 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.svm import SVR
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
+from sklearn import preprocessing
 import pandas as pd
 import numpy as np
 import math
@@ -11,7 +12,9 @@ import time
 
 # Removes rows with NaN or inf in specified columns
 def clean_data(data, columns):
-    raise NotImplementedError
+    for column in columns:
+        data = data[data[column].notnull()]
+    return data
 
 
 # Given Pandas dataframe, returns 80/20 split into dev and test sets
@@ -31,7 +34,8 @@ def train_optimal_classifier(train_data, train_target):
         'C': [0.1, 1, 10, 100, 500],
         'degree': [0.5, 1, 2, 3, 4, 5],
         'gamma': [0.0],
-        'epsilon': [0.1]}
+        'epsilon': [0.1],
+        'tol': [1e-1]}
     svr = SVR()
     cv_split = KFold(len(train_target), n_folds=10, random_state=42)
     grid_search = GridSearchCV(svr, parameters, cv=cv_split, n_jobs=8)
@@ -39,6 +43,7 @@ def train_optimal_classifier(train_data, train_target):
 
     params = grid_search.best_params_ 
     estimator = grid_search.best_estimator_
+    print 'Number of support vectors: %d' % len(estimator.support_vectors_)
     return params, estimator
 
 
@@ -77,12 +82,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     data = pd.read_hdf(args.datafile, 'data')
-    # TODO specify columns in command line
-    # columns = ['n_chars', 'n_words', 'n_uppercase', 'SMOG', 'entropy', 'timedelta']
+    print 'Original data dims: ' + str(data.shape)
     if args.list_features:
-        print data.columns.values
+        print ' '.join(data.columns.values)
         exit(0)
     columns = args.features
+    data = clean_data(data, columns)
+    print 'Cleaned data dims: ' + str(data.shape)
     train_df, test_df = split_data(data)
     train_mat = train_df.filter(columns + ['cid', 'sid', 'score']).as_matrix()
     test_mat = test_df.filter(columns + ['cid', 'sid', 'score']).as_matrix()
@@ -90,20 +96,32 @@ if __name__ == '__main__':
     print "Training set: %d examples" % (train_mat.shape[0],)
     print "Test set: %d examples" % (test_mat.shape[0],)
     print "Selected %d features" % (len(columns),)
-    print columns
+    print 'Features: ' + ' '.join(columns)
 
     train_data = train_mat[:, :-3].astype(np.float)
     train_target = train_mat[:, -1].astype(np.float)
     test_data = test_mat[:, :-3].astype(np.float)
     test_target = test_mat[:, -1].astype(np.float)
 
+    scaler = preprocessing.StandardScaler().fit(train_data)
+    train_data = scaler.transform(train_data)
+    test_data = scaler.transform(test_data)
+
     start = time.time()
     params, svr = train_optimal_classifier(train_data, train_target)
     print params
     print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
 
+    train_pred = svr.predict(train_data)
+    data_pred = pd.DataFrame(np.column_stack((train_mat[:, -3:], train_pred)),
+                             columns=['cid', 'sid', 'score', 'pred'])
+    print 'Performance on training data'
+    for k in range(1, 21):
+        print '\tNDCG@%d: %.5f' % (k, ndcg(data_pred, k))
+
     test_pred = svr.predict(test_data)
     data_pred = pd.DataFrame(np.column_stack((test_mat[:, -3:], test_pred)), 
                              columns=['cid', 'sid', 'score', 'pred'])
-    for k in [1, 5, 10, 20]:
-        print 'NDCG@%d: %.5f' % (k, ndcg(data_pred, k)) 
+    print 'Performance on test data'
+    for k in range(1, 21):
+        print '\tNDCG@%d: %.5f' % (k, ndcg(data_pred, k)) 
