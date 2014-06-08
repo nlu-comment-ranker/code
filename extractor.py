@@ -99,24 +99,6 @@ def processFeatureSet(f, options, vsmTag_global="_global"):
     f.clean_temp()
 
 
-def featureSets_to_DataFrame(featureSets):
-    colnames = (features.FeatureSet.vars_feature_all 
-            + features.FeatureSet.vars_label)
-    # Convert to DataFrame directly to avoid NumPy's homogeneous type requirement
-    df = pd.DataFrame([f.to_list(colnames) for f in featureSets], columns=colnames)
-
-    # Convert all unicode to ASCII strings before saving to HDF5
-    df['self_id'] = map(str, df['self_id'])
-    df['parent_id'] = map(str, df['parent_id'])
-
-    # For now, everything in featureSets is a comment,
-    # and all parents are submissions
-    # rename columns to keep Sammy happy
-    df['cid'] = df['self_id']
-    df['sid'] = df['parent_id']
-
-    return df
-
 def main(options):
     # Initialize database
     session = init_DB(options.dbfile)
@@ -200,11 +182,22 @@ def main(options):
     #########################
 
     # Convert to DataFrame
-    data = featureSets_to_DataFrame(featureSets)
+    df = features.fs_to_DataFrame(featureSets)
+    df = features.derive_features(df)
+
+    # Convert all unicode to ASCII strings before saving to HDF5
+    df['self_id'] = map(str, df['self_id'])
+    df['parent_id'] = map(str, df['parent_id'])
+
+    # For now, everything in featureSets is a comment,
+    # and all parents are submissions
+    # rename columns to keep Sammy happy
+    df['cid'] = df['self_id']
+    df['sid'] = df['parent_id']
 
     # Save data to HDF5
     if options.saveas == 'hdf':
-        data.to_hdf(options.savename, "data")
+        df.to_hdf(options.savename, "data")
 
 
 if __name__ == '__main__':

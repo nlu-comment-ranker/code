@@ -68,6 +68,8 @@ def sparse_row_cosine_similarity(v1,v2):
 def sparse_row_jaccard_similarity(v1,v2):
     """Compute Jaccard similarity of two sparse row vectors, treating
     the nonzero indices as set members and ignoring the actual values."""
+    if v1.nnz < 1 or v2.nnz < 1: return 0
+
     i1 = set(v1.nonzero()[1]) # nonzero column indices
     i2 = set(v2.nonzero()[1]) # nonzero column indices
     return len(i1 & i2) / (1.0*len(i1 | i2)) # Jaccard index
@@ -195,16 +197,53 @@ class VSM(object):
         alltexts = self.texts + self.parent_texts
         self.wcMatrix = self.vectorizer.fit_transform(alltexts)
 
+        if not sparse.isspmatrix_csr(self.wcMatrix):
+            self.wcMatrix = self.wcMatrix.tocsr() # for efficient row access
+
 
     def build_TFIDF(self, **toptions):
         self.tfidf_transformer = TfidfTransformer(**toptions)
         self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.wcMatrix)
+
+        if not sparse.isspmatrix_csr(self.tfidfMatrix):
+            self.tfidfMatrix = self.tfidfMatrix.tocsr() # for efficient row access
 
 
 
 ####################
 # FeatureSet Class #
 ####################
+
+##
+# DataFrame conversion function
+# operates on a list of FeatureSet objects
+def fs_to_DataFrame(featureSets):
+    import pandas as pd
+    """Convert a list of FeatureSet objects to
+    a pandas DataFrame, for convenient analysis
+    and passing to ML routines."""
+    colnames = (FeatureSet.vars_feature_all 
+            + FeatureSet.vars_label)
+    # Convert to DataFrame directly to avoid NumPy's homogeneous type requirement
+    df = pd.DataFrame([f.to_list(colnames) for f in featureSets], 
+                      columns=colnames)
+    return df
+
+def derive_features(df):
+    """Compute derivative features from the DataFrame representation."""
+    
+    # Normalize score by the parent submission score
+    df['score_normalized'] = df['score'] / abs(df['parent_score'])
+    
+    # Normalize score rank to a 0-1 scale
+    # by the number of comments in a thread
+    # 0 = highest, 1 = lowest
+    # (note +1 to correct for zero-indexing)
+    df['score_rank_normalized'] = (df['score_rank']+1) / df['parent_nchildren']
+
+    # "Excess Relevance"
+
+    return df
 
 # Prefixer functions; convert vars_user_activity to
 # vars_feature_user_[local/global]
@@ -230,6 +269,7 @@ class FeatureSet(object):
     vars_label = ['score',
                   'score_rank',
                   'parent_score',
+                  'parent_nchildren',
                   'self_id',
                   'parent_id',
                   ]
@@ -472,12 +512,24 @@ class FeatureSet(object):
         """Calculate part-of-speech tags."""
         self.posTags = map(tagger, self.words)
 
-    def calc_nouns_verbs(self):
-        """Count all nouns and verbs, from Penn Treebank POS tags."""
-        self.n_nouns = len([w for w,t in itertools.chain(*self.posTags)
-                            if t.startswith("NN")])
-        self.n_verbs = len([w for w,t in itertools.chain(*self.posTags)
-                            if t.startswith("VB")])
+    def calc_pos(self):
+        """Count all nouns and verbs, from Penn Treebank POS tags.
+        See nltl.help.upenn_tagset() for more information."""
+        alltags = [t for w,t in itertools.chain(*self.posTags)]
+        def count_tags(regex):
+            return len([t for t in alltags if re.search(regex,t)])
+
+        # self.n_verbs = len([w for w,t in itertools.chain(*self.posTags)
+        #                     if t.startswith("VB")])
+        self.n_nouns = count_tags("NN")
+        self.n_nounproper = count_tags("NNP")
+        self.n_verbs = count_tags("VB")
+        self.n_adj = count_tags("JJ")
+        self.n_adv = count_tags("RB")
+        self.n_inter = count_tags("UH") # interjections
+        self.n_wh = count_tags("WDT") + count_tags("WRB") # wh- determiners and adverbs
+        self.n_particle = count_tags("RP") # prepositions
+        self.n_numeral = count_tags("CD")
 
 
     ##
@@ -522,6 +574,7 @@ class FeatureSet(object):
 
         rank_comments(self.parent)
         self.parent_score = self.parent.score
+        self.parent_nchildren = len(self.parent.comments) # total number of comments, for normalizing rankings
         self.score_rank = self.original.score_rank
         self.position_rank = self.original.position_rank
         self.timedelta = (self.original.timestamp - self.parent.timestamp).total_seconds()
