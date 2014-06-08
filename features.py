@@ -22,6 +22,7 @@ import re
 
 from numpy import linalg
 from numpy import array, sqrt, log, nan
+from scipy import sparse
 
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -58,11 +59,18 @@ def entropy_normalized(v):
     vdist = vnz / Z
     return (-1/Z)*( sum(vdist*log(vdist)) - log(Z) )
 
-def sparse_row_cosine_distance(v1,v2):
-    """Compute the cosine distance between two sparse row vectors."""
+def sparse_row_cosine_similarity(v1,v2):
+    """Compute the cosine similarity between two sparse row vectors."""
     dp = (v1 * v2.T)[0,0]
     norm = sqrt(1.0*(v1 * v1.T)*(v2 * v2.T))[0,0]
     return (dp / norm if norm != 0 else 0)
+
+def sparse_row_jaccard_similarity(v1,v2):
+    """Compute Jaccard similarity of two sparse row vectors, treating
+    the nonzero indices as set members and ignoring the actual values."""
+    i1 = set(v1.nonzero()[1]) # nonzero column indices
+    i2 = set(v2.nonzero()[1]) # nonzero column indices
+    return len(i1 & i2) / (1.0*len(i1 | i2)) # Jaccard index
 
 ##
 # Context-based features
@@ -134,7 +142,7 @@ class VSM(object):
     wcMatrix = None
     tfidfMatrix = None
 
-    def __init__(self, featureSets):
+    def __init__(self, featureSets, tag="_global"):
         self.featureSets = featureSets
 
         # All comment texts
@@ -149,16 +157,32 @@ class VSM(object):
         # All parent texts
         self.parent_texts = [p.original.text for p in self.parentFeatureSets]
 
-    def index_featuresets(self, tag=""):
+    def index_featuresets(self, tag="_global"):
         """Tag all featuresets with a reference to this VSM,
         and a row index for accessing wcMatrix, tfidfMatrix, etc."""
         # Tag each featureSet with index into VSM
         allfeatures = self.featureSets + self.parentFeatureSets
+        self.tag = tag
         for i,f in enumerate(allfeatures):
             """Store with custom tag, to allow a featureSet to
             belong to multiple VSMs"""
             setattr(f, "VSM"+tag, self) # store reference to VSM
             setattr(f, "vsIndex"+tag, i) # store row index
+
+    def get_row_index(self, featureSet):
+        return getattr(featureSet, "vsIndex"+self.tag)
+
+
+    def build_VSM_from_existing(self, vsm):
+        """Generate a new VSM from an existing VSM's wcMatrix.
+        Requires that all contained FeatureSets have been tagged
+        with both self.tag and vsm.tag."""
+        allfeatures = self.featureSets + self.parentFeatureSets
+        rows = [vsm.wcMatrix[vsm.get_row_index(f)] for f in allfeatures]
+        
+        # Build a new wcMatrix from existing rows
+        # TO-DO: convert all matricies to CSR
+        self.wcMatrix = sparse.vstack(rows, format='csr')
 
 
     def build_VSM(self, tokenizer=default_tokenizer, **voptions):
@@ -168,22 +192,13 @@ class VSM(object):
                                           **voptions)
 
         # Concatenate texts to build global VSM
-        # t0 = time.time()
-        # print >> sys.stderr, "Building VSM...",
         alltexts = self.texts + self.parent_texts
         self.wcMatrix = self.vectorizer.fit_transform(alltexts)
-        # print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
 
     def build_TFIDF(self, **toptions):
-        # Init
         self.tfidf_transformer = TfidfTransformer(**toptions)
-
-        # Fit
-        # t0 = time.time()
-        # print >> sys.stderr, "Computing TFIDF...",
         self.tfidfMatrix = self.tfidf_transformer.fit_transform(self.wcMatrix)
-        # print >> sys.stderr, "Completed in %.02g seconds." % (time.time() - t0)
 
 
 
@@ -253,10 +268,16 @@ class FeatureSet(object):
     # - Cohesion
 
     ##
-    # Context-based features (comment-submission)
+    # Context-based features 
+    # - comment-submission based
+
     vars_feature_context = ['timedelta',
                             'position_rank',
                             'parent_term_overlap',
+                            'parent_jaccard_overlap',
+                            'parent_tfidf_overlap',
+                            'informativeness_thread',
+                            'informativeness_global',
                             ]
 
 
@@ -302,6 +323,9 @@ class FeatureSet(object):
         self.original = original
         self.parent = parent
         self.user = user
+
+        # Backreference
+        self.original.featureSet = self
 
         # Initialize labels, from original
         # for now, this is just 'score'
@@ -460,12 +484,12 @@ class FeatureSet(object):
     # Distributional features
     # requires an associated VSM matching tag
 
-    def getVSMfromTag(self, vsmTag=""):
+    def getVSMfromTag(self, vsmTag="_global"):
         vsm = getattr(self, "VSM"+vsmTag) # vsm
         i = getattr(self, "vsIndex"+vsmTag) # index
         return vsm, i
 
-    def calc_entropy(self, vsmTag=""):
+    def calc_entropy(self, vsmTag="_global"):
         vsm, i = self.getVSMfromTag(vsmTag)
 
         # Calculate entropy from wcMatrix[i]
@@ -503,7 +527,8 @@ class FeatureSet(object):
         self.timedelta = (self.original.timestamp - self.parent.timestamp).total_seconds()
 
 
-    def calc_parent_overlap(self, vsmTag="", matrix="tfidfMatrix"):
+    def calc_parent_overlap(self, vsmTag="_global"):
+        """Calculate parent overlap in the global VSM."""
         if self.parent == None:
             raise MissingDataException("FeatureSet.parent not specified, unable to calculate context features.")
         elif not hasattr(self.parent, 'featureSet'):
@@ -511,11 +536,32 @@ class FeatureSet(object):
 
         vsm, i = self.getVSMfromTag(vsmTag)
         _, parent_i = self.parent.featureSet.getVSMfromTag(vsmTag)
-        vsMatrix = getattr(vsm, matrix)
 
-        v = vsMatrix[i]
-        p = vsMatrix[parent_i]
-        overlap = sparse_row_cosine_distance(v,p)
-
+        # Raw term-count overlap
+        v = vsm.wcMatrix[i]
+        p = vsm.wcMatrix[parent_i]
+        overlap = sparse_row_cosine_similarity(v,p)
         self.parent_term_overlap = overlap
 
+        # Jaccard similarity
+        self.parent_jaccard_overlap = sparse_row_jaccard_similarity(v,p)
+
+        # TF-IDF Overlap
+        v = vsm.tfidfMatrix[i]
+        p = vsm.tfidfMatrix[parent_i]
+        overlap = sparse_row_cosine_similarity(v,p)
+        self.parent_tfidf_overlap = overlap
+
+
+    def calc_informativeness(self, vsmTag_thread="_thread",
+                             vsmTag_global="_global"):
+        """
+        Calculate informativeness, i.e. the sum of the
+        TF-IDF document vector in the context of the
+        local thread and of the global VSM (entire dataset).
+        """
+        vsm, i = self.getVSMfromTag(vsmTag_thread)
+        self.informativeness_thread = vsm.tfidfMatrix[i].sum()
+
+        vsm, i = self.getVSMfromTag(vsmTag_global)
+        self.informativeness_global = vsm.tfidfMatrix[i].sum()
