@@ -50,11 +50,14 @@ def train_optimal_classifier(train_data, train_target):
 def _dcg(scores, k):
     if len(scores) > k:
         scores = scores[:k]
-    return sum(s / math.log(1.0 + i, 2.0) for i, s in enumerate(scores, start=1))
+    dcgs = np.cumsum([s / math.log(1.0 + i, 2.0) for i, s in enumerate(scores, start=1)])
+    if len(dcgs) < k:
+        dcgs = np.append(dcgs, [dcgs[-1] for i in range(k - len(dcgs))])
+    return dcgs
 
 
 def ndcg(data, k):
-    scores = []
+    scores = np.zeros(k)
     for sid in data.sid.unique():
         # Add ranks and favorability scores to data frame (Hsu et al.)
         comments = data[data.sid == sid]
@@ -66,11 +69,11 @@ def ndcg(data, k):
         comments['rank'] = ranks
         comments['fav'] = len(comments) - comments[['rank']] + 1
         
-        dcg = _dcg([f for f in comments.pred_fav], k)
-        idcg = _dcg([f for f in comments.fav], k)
-        scores.append(dcg / idcg)
+        dcgs = _dcg(comments.pred_fav, k)
+        idcgs = _dcg(comments.fav, k)
+        scores += (dcgs / idcgs)
 
-    return sum(scores) / float(len(scores))
+    return scores / float(len(data.sid.unique()))
 
 
 if __name__ == '__main__':
@@ -116,12 +119,12 @@ if __name__ == '__main__':
     data_pred = pd.DataFrame(np.column_stack((train_mat[:, -3:], train_pred)),
                              columns=['cid', 'sid', 'score', 'pred'])
     print 'Performance on training data'
-    for k in range(1, 21):
-        print '\tNDCG@%d: %.5f' % (k, ndcg(data_pred, k))
+    for i, score in enumerate(ndcg(data_pred, 20), start=1):
+        print '\tNDCG@%d: %.5f' % (i, score) 
 
     test_pred = svr.predict(test_data)
     data_pred = pd.DataFrame(np.column_stack((test_mat[:, -3:], test_pred)), 
                              columns=['cid', 'sid', 'score', 'pred'])
     print 'Performance on test data'
-    for k in range(1, 21):
-        print '\tNDCG@%d: %.5f' % (k, ndcg(data_pred, k)) 
+    for i, score in enumerate(ndcg(data_pred, 20), start=1):
+        print '\tNDCG@%d: %.5f' % (i, score) 
