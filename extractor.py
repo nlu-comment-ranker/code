@@ -52,6 +52,10 @@ def construct_VSM(featureSets, vsmTag="_global"):
     vsm.build_TFIDF()
     return vsm
 
+##
+# TO-DO:
+# make this more memory-efficient;
+# discard the local VSMs after computing comment features
 def build_thread_VSMs(vsm_global):
     """Construct individual VSMs for each submission."""
     for pfs in vsm_global.parentFeatureSets:
@@ -68,6 +72,12 @@ def build_thread_VSMs(vsm_global):
         pfs.vsm_thread.build_VSM_from_existing(vsm_global)
         pfs.vsm_thread.build_TFIDF()
         # print "  VSM: %s" % (str(pfs.vsm_thread.tfidfMatrix.shape))
+
+        # Clean up memory (only need to keep tfidfMatrix)
+        pfs.vsm_thread.vectorizer = None
+        pfs.vsm_thread.tfidf_transformer = None
+        pfs.vsm_thread.wcMatrix = None
+
 
 def calcGeneralFeatures(f, options, vsmTag_global="_global"):
     """Calculate user-based, context-based, and VSM features."""
@@ -218,8 +228,16 @@ def main(options):
     df = features.derive_features(df)
 
     # Convert all unicode to ASCII strings before saving to HDF5
-    df['self_id'] = map(str, df['self_id'])
-    df['parent_id'] = map(str, df['parent_id'])
+    cols_unicode = ['self_id', 'parent_id', 'distinguished']
+    for name in cols_unicode:
+        df[name] = map(str, df[name])
+    # df['self_id'] = map(str, df['self_id'])
+    # df['parent_id'] = map(str, df['parent_id'])
+
+    # Convert all boolean to float (0.0, 1.0), NaN if missing
+    cols_boolean = ['is_mod', 'is_gold', 'has_verified_email']
+    for name in cols_boolean:
+        df[name] = map(float, df[name])
 
     # For now, everything in featureSets is a comment,
     # and all parents are submissions
@@ -228,10 +246,9 @@ def main(options):
     df['sid'] = df['parent_id']
 
     # Save data to HDF5
-    if options.saveas == 'hdf':
-        print "== Exporting to HDF5 =="
-        df.to_hdf(options.savename, "data")
-        print "  [saved as %s]" % options.savename
+    print "== Exporting to HDF5 =="
+    df.to_hdf(options.savename, "data")
+    print "  [saved as %s]" % options.savename
 
 
 if __name__ == '__main__':
@@ -247,9 +264,9 @@ if __name__ == '__main__':
                         default='data',
                         help="Output file name. Extension (e.g. .h5) will be added automatically.")
 
-    parser.add_argument('--saveas', dest='saveas', 
-                        default='hdf',
-                        help="Output file format.")
+    # parser.add_argument('--saveas', dest='saveas', 
+    #                     default='hdf',
+    #                     help="Output file format.")
 
     ##
     # Feature Options
