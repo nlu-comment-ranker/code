@@ -27,6 +27,9 @@ from scipy import sparse
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 
+# Text Preprocessing Functions
+import text_pre
+
 ###########################
 # Static Helper Functions #
 ###########################
@@ -119,28 +122,6 @@ def get_text(obj, cat_title=True):
 # Vector Space Model #
 ######################
 
-# Tokenizers for input
-sent_tokenize = nltk.tokenize.sent_tokenize
-word_tokenize = nltk.tokenize.word_tokenize
-stemmer = nltk.stem.porter.PorterStemmer()
-
-def wordfilter(word):
-    """Crude filter to skip punctuation and URLs
-    Note that this leaves in the 'http' token, which
-    can still be used as a proxy for URLs."""
-    if len(word) < 2: return False
-    if "www" in word: return False
-    # if not a.isalpha(): return False
-    return True
-
-def default_tokenizer(text, wf=wordfilter):
-    sentences = sent_tokenize(text)
-    words = (word_tokenize(s) for s in sentences) # lazy generator
-    # To-Do: make this filtering more robust, add special tokens / transform
-    words_filtered = (w for w in lazy_chain(words) if wf(w)) # lazy generator
-    # words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
-    return [stemmer.stem(w) for w in words_filtered]
-
 class VSM(object):
 
     vectorizer = None
@@ -201,7 +182,7 @@ class VSM(object):
         self.wcMatrix = sparse.vstack(rows, format='csr')
 
 
-    def build_VSM(self, tokenizer=default_tokenizer, **voptions):
+    def build_VSM(self, tokenizer=text_pre.default_tokenizer, **voptions):
         """Generate a VSM in sparse matrix format, 
         consisting of word frequencies for each text."""
         self.vectorizer = CountVectorizer(tokenizer=tokenizer,
@@ -485,8 +466,8 @@ class FeatureSet(object):
     # TreebankWordTokenizer for words (per-sentence)
     # from nltk.tokenize import word_tokenize, sent_tokenize
     def tokenize(self, 
-                 sent_tokenize = nltk.tokenize.sent_tokenize,
-                 word_tokenize = nltk.tokenize.word_tokenize,
+                 sent_tokenize = text_pre.sent_tokenize,
+                 word_tokenize = text_pre.word_tokenize,
                  ):
         """Tokenize text, to populate temp vars:
         - sentences
