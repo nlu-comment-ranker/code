@@ -79,7 +79,6 @@ def calcGeneralFeatures(f, options, vsmTag_global="_global"):
         except features.MissingDataException as e:
             print >> options.logfile, "Missing user data for %s" % (f.self_id)
 
-
     f.calc_parent_rank_features()
     
     # Distributional: require VSMs
@@ -160,16 +159,41 @@ def main(options):
     print "  [completed in %.02g seconds]" % (time.time() - t0)
 
 
-    ####################
-    # Process Features #
-    ####################
+    ############################
+    # Process General Features #
+    ############################
     t0 = time.time()
     t1 = time.time()
     counter = 0
     printevery = len(featureSets) / 10
-    print "== Processing %d total comments ==" % len(featureSets)
+    print "== Extracting general features: %d total comments ==" % len(featureSets)
     for f in featureSets:
         calcGeneralFeatures(f, options, vsmTag_global=vsmTag_global)
+        # calcLocalFeatures(f, options)
+
+        # Progress indicator
+        counter += 1
+        if counter % printevery == 0:
+            temp = t1
+            t1 = time.time()
+            print "  -> last %d: %.02f s (%.01f%% done)" % (printevery, (t1 - temp), counter*100.0/len(featureSets))
+
+    dt = time.time() - t0
+    print "  [completed %d in %.02f s]" % (counter, dt)
+    print "  (%d ms per comment)" % ((dt * 1000)/counter)
+
+    ##########################
+    # Process Local Features #
+    ##########################
+    t0 = time.time()
+    t1 = time.time()
+    counter = 0
+    printevery = len(featureSets) / 10
+    if options.f_pos: printevery /= 10 # much slower!
+    printevery = max(100, printevery) # avoid dumping too much text :)
+    print "== Extracting local features: %d total comments ==" % len(featureSets)
+    for f in featureSets:
+        # calcGeneralFeatures(f, options, vsmTag_global=vsmTag_global)
         calcLocalFeatures(f, options)
 
         # Progress indicator
@@ -189,6 +213,7 @@ def main(options):
     #########################
 
     # Convert to DataFrame
+    print "== Converting to DataFrame =="
     df = features.fs_to_DataFrame(featureSets)
     df = features.derive_features(df)
 
@@ -204,7 +229,9 @@ def main(options):
 
     # Save data to HDF5
     if options.saveas == 'hdf':
+        print "== Exporting to HDF5 =="
         df.to_hdf(options.savename, "data")
+        print "  [saved as %s]" % options.savename
 
 
 if __name__ == '__main__':

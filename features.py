@@ -31,6 +31,14 @@ from sklearn.feature_extraction.text import TfidfTransformer
 # Static Helper Functions #
 ###########################
 
+# Like itertools.chain, but doesn't 
+# require eager argument expansion
+# at the top level
+def lazy_chain(listgen):
+    for l in listgen:
+        for e in l:
+            yield e
+
 ##
 # Readability scores
 def is_polysyllabic(w, hyphenator=hyphen.Hyphenator('en_US')):
@@ -129,7 +137,8 @@ def default_tokenizer(text, wf=wordfilter):
     sentences = sent_tokenize(text)
     words = (word_tokenize(s) for s in sentences) # lazy generator
     # To-Do: make this filtering more robust, add special tokens / transform
-    words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
+    words_filtered = (w for w in lazy_chain(words) if wf(w)) # lazy generator
+    # words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
     return [stemmer.stem(w) for w in words_filtered]
 
 class VSM(object):
@@ -487,7 +496,8 @@ class FeatureSet(object):
         text = get_text(self.original, cat_title=True)
         self.sentences = sent_tokenize(text)
         self.words = [word_tokenize(t) for t in self.sentences]
-        self.wordCounts = Counter(itertools.chain(*self.words))
+        # self.wordCounts = Counter(itertools.chain(*self.words))
+        self.wordCounts = Counter(lazy_chain(self.words))
 
     def calc_token_counts(self):
         """
@@ -522,7 +532,8 @@ class FeatureSet(object):
     def calc_pos(self):
         """Count all nouns and verbs, from Penn Treebank POS tags.
         See nltl.help.upenn_tagset() for more information."""
-        alltags = [t for w,t in itertools.chain(*self.posTags)]
+        # alltags = [t for w,t in itertools.chain(*self.posTags)]
+        alltags = [t for w,t in lazy_chain(self.posTags)]
         def count_tags(regex):
             return len([t for t in alltags if re.search(regex,t)])
 
