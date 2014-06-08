@@ -292,6 +292,10 @@ class FeatureSet(object):
                          'n_sentences',
                          'n_paragraphs',
                          'n_uppercase',
+                         'tok_n_links',
+                         'tok_n_emph',
+                         'tok_n_nums',
+                         'tok_n_quote',
                          'SMOG',
                          'entropy',
                          'pos_n_noun',
@@ -468,6 +472,8 @@ class FeatureSet(object):
     def tokenize(self, 
                  sent_tokenize = text_pre.sent_tokenize,
                  word_tokenize = text_pre.word_tokenize,
+                 wf = text_pre.wordfilter,
+                 pre = text_pre.preprocessText
                  ):
         """Tokenize text, to populate temp vars:
         - sentences
@@ -475,12 +481,17 @@ class FeatureSet(object):
         - wordCounts
         """
         text = get_text(self.original, cat_title=True)
+        if pre: text = pre(text) # preprocess -> special tokens, remove markdown
         self.sentences = sent_tokenize(text)
+
+        words = (word_tokenize(s) for s in self.sentences) # lazy generator
+        words_filtered = (w for w in lazy_chain(words) if wf(w)) # lazy generator
+        
         self.words = [word_tokenize(t) for t in self.sentences]
         # self.wordCounts = Counter(itertools.chain(*self.words))
         self.wordCounts = Counter(lazy_chain(self.words))
 
-    def calc_token_counts(self):
+    def calc_token_counts(self, pre = text_pre.preprocessText):
         """
         Compute the following features:
         - n_chars
@@ -491,12 +502,23 @@ class FeatureSet(object):
         Requires that self.tokenize() has been called
         """
         basetext = get_text(self.original, cat_title=True).strip()
+        if pre: basetext = pre(basetext) # preprocess -> special tokens, remove markdown
 
         self.n_chars = len(basetext)
         self.n_words = sum(self.wordCounts.values())
         self.n_sentences = len(self.sentences)
-        self.n_paragraphs = basetext.count('\n')
+        # self.n_paragraphs = basetext.count('\n')
+        self.n_paragraphs = len(re.findall(r'\n+(\s*)', basetext)) # more robust
         self.n_uppercase = sum([c for w,c in self.wordCounts.iteritems() if w[0].isupper()])
+
+        # Count special tokens
+        def count_tokens(list): 
+            return sum([v for k,v in self.wordCounts.iteritems() if k in list])
+        self.tok_n_links = count_tokens(["__URL_TAG__", "__LINK_TAG__"])
+        self.tok_n_emph = count_tokens(["__BOLD__", "__ITAL__"])
+        self.tok_n_nums = count_tokens(["__NUM_TAG__"])
+        self.tok_n_quote = count_tokens(["__QUOTE__"])
+
 
     def calc_SMOG(self):
         self.SMOG = SMOG(self.wordCounts, self.sentences)
