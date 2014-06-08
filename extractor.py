@@ -69,18 +69,8 @@ def build_thread_VSMs(vsm_global):
         pfs.vsm_thread.build_TFIDF()
         # print "  VSM: %s" % (str(pfs.vsm_thread.tfidfMatrix.shape))
 
-def processFeatureSet(f, options, vsmTag_global="_global"):
-    f.tokenize()
-    f.calc_token_counts()
-    f.calc_SMOG()
-    
-    # These are slow! Enable only if needed.
-    if options.f_pos:
-        f.pos_tag()
-        f.calc_nouns_verbs()
-    
-    f.calc_entropy(vsmTag=vsmTag_global)
-    
+def calcGeneralFeatures(f, options, vsmTag_global="_global"):
+    """Calculate user-based, context-based, and VSM features."""
     # This won't run unless user data is available
     if options.f_user:
         try:
@@ -89,12 +79,27 @@ def processFeatureSet(f, options, vsmTag_global="_global"):
         except features.MissingDataException as e:
             print >> options.logfile, "Missing user data for %s" % (f.self_id)
 
+
     f.calc_parent_rank_features()
     
+    # Distributional: require VSMs
+    f.calc_entropy(vsmTag=vsmTag_global)
     f.calc_parent_overlap(vsmTag=vsmTag_global)
-
     f.calc_informativeness()
 
+
+def calcLocalFeatures(f, options):
+    """Calculate local features, involving tokenization
+    and intensive text processing."""
+    f.tokenize()
+    f.calc_token_counts()
+    f.calc_SMOG()
+    
+    # These are slow! Enable only if needed.
+    if options.f_pos:
+        f.pos_tag()
+        f.calc_pos()
+    
     # Call this to recover memory!
     f.clean_temp()
 
@@ -137,8 +142,7 @@ def main(options):
             print "  last %d: %.02f s (%d loaded)" % (printevery, (t1 - temp), counter)
 
     # featureSets = [features.FeatureSet(c, user=c.user, parent=c.submission) for c in comment_gen]
-    print "== Loaded %d comments in %.02g seconds ==" % (len(featureSets), time.time() - t0)
-
+    print "  [loaded %d comments in %.02g seconds]" % (len(featureSets), time.time() - t0)
 
     ##############
     # Build VSMs #
@@ -147,13 +151,13 @@ def main(options):
     t0 = time.time()
     print "== Generating global VSM =="
     vsm_global = construct_VSM(featureSets, vsmTag=vsmTag_global)
-    print "== Completed in %.02g seconds ==" % (time.time() - t0)
+    print "  [completed in %.02g seconds]" % (time.time() - t0)
 
     # Build per-thread VSMs
     t0 = time.time()
     print "== Generating per-thread VSMs =="
     build_thread_VSMs(vsm_global)
-    print "== Completed in %.02g seconds ==" % (time.time() - t0)
+    print "  [completed in %.02g seconds]" % (time.time() - t0)
 
 
     ####################
@@ -165,16 +169,19 @@ def main(options):
     printevery = len(featureSets) / 10
     print "== Processing %d total comments ==" % len(featureSets)
     for f in featureSets:
-        processFeatureSet(f, options, vsmTag_global=vsmTag_global)
+        calcGeneralFeatures(f, options, vsmTag_global=vsmTag_global)
+        calcLocalFeatures(f, options)
 
         # Progress indicator
         counter += 1
         if counter % printevery == 0:
             temp = t1
             t1 = time.time()
-            print "  last %d: %.02f s (%.01f%% done)" % (printevery, (t1 - temp), counter*100.0/len(featureSets))
+            print "  -> last %d: %.02f s (%.01f%% done)" % (printevery, (t1 - temp), counter*100.0/len(featureSets))
 
-    print "== Completed %d in %.02f s ==" % (counter, time.time() - t0)
+    dt = time.time() - t0
+    print "  [completed %d in %.02f s]" % (counter, dt)
+    print "  (%d ms per comment)" % ((dt * 1000)/counter)
 
 
     #########################

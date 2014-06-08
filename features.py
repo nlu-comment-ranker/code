@@ -100,6 +100,12 @@ def init_featureset(obj):
         return
     obj.featureSet = FeatureSet(obj)
 
+def get_text(obj, cat_title=True):
+    """Get the text from a commentDB object,
+    concatenating it with the title if present."""
+    if cat_title and hasattr(obj, "title"):
+        return obj.title + " \n " + obj.text
+    else: return obj.text
 
 ######################
 # Vector Space Model #
@@ -126,7 +132,6 @@ def default_tokenizer(text, wf=wordfilter):
     words_filtered = (w for w in itertools.chain(*words) if wf(w)) # lazy generator
     return [stemmer.stem(w) for w in words_filtered]
 
-
 class VSM(object):
 
     vectorizer = None
@@ -148,7 +153,7 @@ class VSM(object):
         self.featureSets = featureSets
 
         # All comment texts
-        self.texts = [f.original.text for f in self.featureSets]
+        self.texts = [get_text(f.original, cat_title=True) for f in self.featureSets]
         
         # Collect unique parents
         parents_unique = list({f.parent for f in self.featureSets})
@@ -157,7 +162,7 @@ class VSM(object):
         self.parentFeatureSets = [p.featureSet for p in parents_unique]
         
         # All parent texts
-        self.parent_texts = [p.original.text for p in self.parentFeatureSets]
+        self.parent_texts = [get_text(p.original, cat_title=True) for p in self.parentFeatureSets]
 
     def index_featuresets(self, tag="_global"):
         """Tag all featuresets with a reference to this VSM,
@@ -298,19 +303,20 @@ class FeatureSet(object):
                          'n_paragraphs',
                          'n_uppercase',
                          'SMOG',
-                         'n_verbs',
-                         'n_nouns',
                          'entropy',
+                         'pos_n_noun',
+                         'pos_n_nounproper',
+                         'pos_n_verb',
+                         'pos_n_adj',
+                         'pos_n_adv',
+                         'pos_n_inter',
+                         'pos_n_wh',
+                         'pos_n_particle',
+                         'pos_n_numeral',
                          ]
-    
-    # To-Do: add distributional features
-    # - Informativeness
-    # - Cohesion
 
     ##
     # Context-based features 
-    # - comment-submission based
-
     vars_feature_context = ['timedelta',
                             'position_rank',
                             'parent_term_overlap',
@@ -478,7 +484,8 @@ class FeatureSet(object):
         - words
         - wordCounts
         """
-        self.sentences = sent_tokenize(self.original.text)
+        text = get_text(self.original, cat_title=True)
+        self.sentences = sent_tokenize(text)
         self.words = [word_tokenize(t) for t in self.sentences]
         self.wordCounts = Counter(itertools.chain(*self.words))
 
@@ -492,7 +499,7 @@ class FeatureSet(object):
         - n_uppercase
         Requires that self.tokenize() has been called
         """
-        basetext = self.original.text.strip()
+        basetext = get_text(self.original, cat_title=True).strip()
 
         self.n_chars = len(basetext)
         self.n_words = sum(self.wordCounts.values())
@@ -506,8 +513,8 @@ class FeatureSet(object):
 
     ##
     # Part-of-Speech (POS) tagging, and associated features
-    # - n_nouns
-    # - n_verbs
+    # - n_noun
+    # - n_verb
     def pos_tag(self, tagger=nltk.tag.pos_tag):
         """Calculate part-of-speech tags."""
         self.posTags = map(tagger, self.words)
@@ -519,17 +526,17 @@ class FeatureSet(object):
         def count_tags(regex):
             return len([t for t in alltags if re.search(regex,t)])
 
-        # self.n_verbs = len([w for w,t in itertools.chain(*self.posTags)
+        # self.n_verb = len([w for w,t in itertools.chain(*self.posTags)
         #                     if t.startswith("VB")])
-        self.n_nouns = count_tags("NN")
-        self.n_nounproper = count_tags("NNP")
-        self.n_verbs = count_tags("VB")
-        self.n_adj = count_tags("JJ")
-        self.n_adv = count_tags("RB")
-        self.n_inter = count_tags("UH") # interjections
-        self.n_wh = count_tags("WDT") + count_tags("WRB") # wh- determiners and adverbs
-        self.n_particle = count_tags("RP") # prepositions
-        self.n_numeral = count_tags("CD")
+        self.pos_n_noun = count_tags("NN")
+        self.pos_n_nounproper = count_tags("NNP")
+        self.pos_n_verb = count_tags("VB")
+        self.pos_n_adj = count_tags("JJ")
+        self.pos_n_adv = count_tags("RB")
+        self.pos_n_inter = count_tags("UH") # interjections
+        self.pos_n_wh = count_tags("WDT") + count_tags("WRB") # wh- determiners and adverbs
+        self.pos_n_particle = count_tags("RP") # prepositions
+        self.pos_n_numeral = count_tags("CD")
 
 
     ##
