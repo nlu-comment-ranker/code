@@ -263,6 +263,7 @@ class FeatureSet(object):
     # Training Labels and Metadata
     vars_label = ['score',
                   'score_rank',
+                  'reddit_best_rank',
                   'parent_score',
                   'parent_nchildren',
                   'self_id',
@@ -320,6 +321,16 @@ class FeatureSet(object):
                             'informativeness_global',
                             ]
 
+    ##
+    # Metadata-based features
+    # see commentDB.Comment
+    vars_feature_metadata = ['num_reports',
+                             'distinguished',
+                             'gilded',
+                             'num_replies',
+                             'convo_depth',
+                             ]
+
 
     #########################################
     # User Features                         #
@@ -348,9 +359,16 @@ class FeatureSet(object):
     vars_feature_user_local = map(local_prefixer, vars_user_activity)
     vars_feature_user_global = map(global_prefixer, vars_user_activity)
 
+    vars_feature_user_meta = ['is_mod',
+                              'is_gold',
+                              'has_verified_email',
+                              ]
+
     # List of all features, for convenience
     vars_feature_all = (vars_feature_text 
                         + vars_feature_context
+                        + vars_feature_metadata
+                        + vars_feature_user_meta
                         + vars_feature_user_local 
                         + vars_feature_user_global)
 
@@ -372,7 +390,12 @@ class FeatureSet(object):
         for name in self.vars_label:
             setattr(self, name, None)
         self.score = self.original.score # raw score
-        
+
+        if hasattr(self.original, 'best_rank'):
+            # Ranking according to reddit's "best" ordering
+            # (proprietary normalization)
+            self.reddit_best_rank = self.original.best_rank
+
         if hasattr(self.original, "com_id"):
             self.self_id = self.original.com_id # comment ID
         elif hasattr(self.original, "sub_id"):
@@ -385,6 +408,13 @@ class FeatureSet(object):
         # Initialize features as None
         for name in self.vars_feature_all:
             setattr(self, name, None)
+
+        ##
+        # Load commentDB.Comment metadata features
+        for name in self.vars_feature_metadata:
+            if hasattr(self.original, name):
+                val = getattr(self.original, name)
+                setattr(self, name, val)
 
 
     def __repr__(self):
@@ -446,6 +476,12 @@ class FeatureSet(object):
         """Read in all available user activity stats."""
         if self.user == None:
             raise MissingDataException("FeatureSet.user not specified, unable to ")
+
+        # Load user metadata
+        for name in self.vars_feature_user_meta:
+            if hasattr(self.user, name):
+                val = getattr(self.user, name)
+                setattr(self, name, val)
 
         for ua in self.user.activities:
             try:
