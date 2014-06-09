@@ -23,6 +23,9 @@ import math
 import time
 import random
 
+# Evaluation Functions
+import evaluation
+
 
 # Removes rows with NaN or inf in specified columns
 def clean_data(data, columns):
@@ -67,43 +70,6 @@ def train_optimal_classifier(train_data, train_y):
     estimator = grid_search.best_estimator_
     print 'Number of support vectors: %d' % len(estimator.support_vectors_)
     return params, estimator
-
-######################
-# Evaluation Metrics #
-######################
-
-def _dcg(scores, k):
-    if len(scores) > k:
-        scores = scores[:k]
-    dcgs = np.cumsum([s / math.log(1.0 + i, 2.0) for i, s in enumerate(scores, start=1)])
-    if len(dcgs) < k:
-        dcgs = np.append(dcgs, [dcgs[-1] for i in range(k - len(dcgs))])
-    return dcgs
-
-
-def ndcg(data, k):
-    scores = np.zeros(k)
-    skipped_submissions = 0
-    for sid in data.sid.unique():
-        # Add ranks and favorability scores to data frame (Hsu et al.)
-        comments = data[data.sid == sid]
-        if len(comments) == 0:
-            skipped_submissions += 1
-            continue
-
-        ranks = range(1, len(comments) + 1)
-        comments = comments.sort('pred', ascending=False)
-        comments['pred_rank'] = ranks
-        comments['pred_fav'] = len(comments) - comments[['pred_rank']] + 1
-        comments = comments.sort('score', ascending=False)
-        comments['rank'] = ranks
-        comments['fav'] = len(comments) - comments[['rank']] + 1
-        
-        dcgs = _dcg(comments.pred_fav, k)
-        idcgs = _dcg(comments.fav, k)
-        scores += (dcgs / idcgs)
-
-    return scores / (len(data.sid.unique()) - skipped_submissions)
 
 
 def main(args):
@@ -166,8 +132,10 @@ def main(args):
     train_df[result_label] = train_pred
 
     print 'Performance on training data'
-    # for i, score in enumerate(ndcg(data_pred, 20), start=1):
-    #     print '\tNDCG@%d: %.5f' % (i, score) 
+    rankings = evaluation.ndcg(train_df, 20, 
+                               target=target, result_label=result_label)
+    for i, score in enumerate(rankings, start=1):
+        print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(train_y, train_pred)
 
     ##
@@ -176,8 +144,10 @@ def main(args):
     test_df[result_label] = test_pred
 
     print 'Performance on test data'
-    # for i, score in enumerate(ndcg(data_pred, 20), start=1):
-    #     print '\tNDCG@%d: %.5f' % (i, score) 
+    rankings = evaluation.ndcg(test_df, 20, 
+                               target=target, result_label=result_label)
+    for i, score in enumerate(rankings, start=1):
+        print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
     ##
