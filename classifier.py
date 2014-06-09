@@ -125,6 +125,8 @@ def main(args):
     target = args.target
     train_df, test_df = split_data(data, args.limit_data,
                                    args.test_fraction)
+    train_df['set'] = "train" # annotate
+    test_df['set'] = "test" # annotate
 
     # Split into X, y for regression
     train_X = train_df.filter(feature_names).as_matrix().astype(np.float) # training data
@@ -178,12 +180,36 @@ def main(args):
     #     print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
+    ##
+    # Save model to disk
+    if args.savename:
+        import cPickle as pickle
+        saveas = args.savename + ".model.pkl"
+        print "== Saving model as %s ==" % saveas
+        with open(saveas, 'w') as f:
+            pickle.dump(svr, f)
+
+    ##
+    # Save data to HDF5
+    if args.savename:
+        # Concatenate train, test
+        df = pd.concat([train_df, test_df], 
+                       ignore_index=True)
+
+        print "== Exporting to HDF5 =="
+        saveas = args.savename + ".data.h5"
+        df.to_hdf(saveas, "data")
+        print "  [saved as %s]" % saveas
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Run SVR')
 
     parser.add_argument('datafile', type=str, help='HDF5 data file')
+
+    parser.add_argument('-s', '--savename', dest='savename', 
+                        default=None,
+                        help="Name to save model and results. Extensions (.model.pkl and .data.h5) will be added.")
 
     parser.add_argument('-f', '--features', type=str, 
                         nargs='+', help='Features list')
