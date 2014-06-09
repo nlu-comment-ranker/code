@@ -143,7 +143,7 @@ def main(args):
     train_pred = svr.predict(train_X)
     train_df[result_label] = train_pred
 
-    print 'Performance on training data'
+    print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
     rankings = eval_func(train_df)
     for i, score in enumerate(rankings, start=1):
         print '\tNDCG@%d: %.5f' % (i, score) 
@@ -154,7 +154,7 @@ def main(args):
     test_pred = svr.predict(test_X)
     test_df[result_label] = test_pred
 
-    print 'Performance on test data'
+    print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
     rankings = eval_func(test_df)
     for i, score in enumerate(rankings, start=1):
         print '\tNDCG@%d: %.5f' % (i, score) 
