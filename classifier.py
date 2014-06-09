@@ -126,14 +126,25 @@ def main(args):
     print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
 
     ##
+    # Set up evaluation function
+    if args.ndcg_weight == 'target':
+        favfunc = evaluation.fav_target # score weighting
+    else:
+        favfunc = evaluation.fav_linear # rank weighting
+
+    eval_func = lambda data: evaluation.ndcg(data, 20,
+                                             target=target, 
+                                             result_label=result_label,
+                                             compute_favorability=favfunc)
+
+    ##
     # Predict scores for training set
     result_label = "pred_%s" % target # e.g. pred_score
     train_pred = svr.predict(train_X)
     train_df[result_label] = train_pred
 
     print 'Performance on training data'
-    rankings = evaluation.ndcg(train_df, 20, 
-                               target=target, result_label=result_label)
+    rankings = eval_func(train_df)
     for i, score in enumerate(rankings, start=1):
         print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(train_y, train_pred)
@@ -144,8 +155,7 @@ def main(args):
     test_df[result_label] = test_pred
 
     print 'Performance on test data'
-    rankings = evaluation.ndcg(test_df, 20, 
-                               target=target, result_label=result_label)
+    rankings = eval_func(test_df)
     for i, score in enumerate(rankings, start=1):
         print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
@@ -198,6 +208,14 @@ if __name__ == '__main__':
     parser.add_argument('--tf', dest='test_fraction', 
                         default=0.9, type=float,
                         help="Fraction to reserve for testing")
+
+    parser.add_argument('--n_weight', dest='ndcg_weight', 
+                        default='target', type=str,
+                        help="""
+                        Weighting option for NDCG calculation.
+                        'target' : weight by regression target
+                        'linear' : weight by rank
+                        """)
 
     args = parser.parse_args()
 

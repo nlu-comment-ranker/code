@@ -43,13 +43,27 @@ def fav_linear(comments, target, result_label):
 
     return comments
 
-def fav_score(comments, target, result_label):
-    pass
+def fav_target(comments, target, result_label):
+    """
+    Calculate favorability for NDCG as the raw score of a comment.
+    """
+    real_fav = comments[target].as_matrix()
+
+    comments = comments.sort(result_label, ascending=False)
+    comments['pred_fav'] = real_fav
+
+    comments = comments.sort(target, ascending=False)
+    comments['fav'] = comments[target]
+    return comments
+
 
 def ndcg(data, k, target, result_label,
          compute_favorability=fav_linear):
     scores = np.zeros(k)
     skipped_submissions = 0
+
+    # import pdb
+    # pdb.set_trace()
 
     # Loop through all submissions
     for sid in data.sid.unique():
@@ -65,10 +79,18 @@ def ndcg(data, k, target, result_label,
         comments = compute_favorability(comments, target, result_label)
 
         ##
-        # Compute NDCG@k for this submission, add to scores
+        # Compute NDCG@i for i = 1,2,...k
+        # for this submission, add to scores
         dcgs = _dcg(comments['pred_fav'], k)
         idcgs = _dcg(comments['fav'], k)
-        scores += (dcgs / idcgs)
+        res = (dcgs / idcgs)
+        res[idcgs == 0] = 0 # ignore NaN
+        scores += res
+
+        if not all(np.isfinite(scores)):
+            import pdb
+            pdb.set_trace()
 
     # Return average score
     return scores / (len(data.sid.unique()) - skipped_submissions)
+
