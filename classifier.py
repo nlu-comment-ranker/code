@@ -183,7 +183,7 @@ def main(args):
         print "  [saved as %s]" % saveas
 
         # Save NDCG calculations
-        dd = {'k':range(1,max_K+1),
+        dd = {'k':range(1,max_K+1), 'method':[args.ndcg_weight]*max_K,
               'ndcg_train':ndcg_train, 'ndcg_test':ndcg_test}
         resdf = pd.DataFrame(dd)
         saveas = args.savename + ".results.csv"
