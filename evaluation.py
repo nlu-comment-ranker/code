@@ -45,7 +45,11 @@ def fav_linear(comments, target, result_label):
 
 def fav_target(comments, target, result_label):
     """
-    Calculate favorability for NDCG as the raw score of a comment.
+    Calculate favorability for NDCG using the actual
+    comment scores as the position->relevance function.
+    
+    Returns comments sorted in target (ground-truth) order, 
+    but with pred_fav in the order predicted by the model.
     """
     real_fav = comments[target].as_matrix()
 
