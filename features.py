@@ -236,7 +236,14 @@ def derive_features(df):
     # (note +1 to correct for zero-indexing)
     df['score_rank_normalized'] = (df['score_rank']+1) / df['parent_nchildren']
 
-    # "Excess Relevance"
+    # Normalize POS tags
+    # pos_n_noun -> pos_f_noun
+    import re
+    pos_names = [n for n in df.columns.values if n.startswith("pos_n_")]
+    for n in pos_names:
+        newn = re.sub("pos_n_", "pos_f_", n)
+        print "%s -> %s" % (n, newn)
+        df[newn] = df[n] / (1.0*df.n_words)
 
     return df
 
