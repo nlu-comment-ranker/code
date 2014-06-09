@@ -136,7 +136,7 @@ def main(args):
     eval_func = lambda data: evaluation.ndcg(data, max_K,
                                              target=target, 
                                              result_label=result_label,
-                                             compute_favorability=favfunc)
+                                             fav_func=favfunc)
 
     ##
     # Predict scores for training set
