@@ -132,7 +132,8 @@ def main(args):
     else:
         favfunc = evaluation.fav_linear # rank weighting
 
-    eval_func = lambda data: evaluation.ndcg(data, 20,
+    max_K = 20
+    eval_func = lambda data: evaluation.ndcg(data, max_K,
                                              target=target, 
                                              result_label=result_label,
                                              compute_favorability=favfunc)
@@ -144,8 +145,8 @@ def main(args):
     train_df[result_label] = train_pred
 
     print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
-    rankings = eval_func(train_df)
-    for i, score in enumerate(rankings, start=1):
+    ndcg_train = eval_func(train_df)
+    for i, score in enumerate(ndcg_train, start=1):
         print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(train_y, train_pred)
 
@@ -155,8 +156,8 @@ def main(args):
     test_df[result_label] = test_pred
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
-    rankings = eval_func(test_df)
-    for i, score in enumerate(rankings, start=1):
+    ndcg_test = eval_func(test_df)
+    for i, score in enumerate(ndcg_test, start=1):
         print '\tNDCG@%d: %.5f' % (i, score) 
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
@@ -176,10 +177,18 @@ def main(args):
         df = pd.concat([train_df, test_df], 
                        ignore_index=True)
 
-        print "== Exporting to HDF5 =="
+        print "== Exporting data to HDF5 =="
         saveas = args.savename + ".data.h5"
         df.to_hdf(saveas, "data")
         print "  [saved as %s]" % saveas
+
+        # Save NDCG calculations
+        dd = {'k':range(1,max_K+1),
+              'ndcg_train':ndcg_train, 'ndcg_test':ndcg_test}
+        resdf = pd.DataFrame(dd)
+        saveas = args.savename + ".results.csv"
+        print "== Saving results to %s ==" % saveas
+        resdf.to_csv(saveas)
 
 
 if __name__ == '__main__':

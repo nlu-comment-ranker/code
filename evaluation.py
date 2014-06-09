@@ -58,7 +58,8 @@ def fav_target(comments, target, result_label):
 
 
 def ndcg(data, k, target, result_label,
-         compute_favorability=fav_linear):
+         compute_favorability=fav_linear,
+         min_comments = 2):
     scores = np.zeros(k)
     skipped_submissions = 0
 
@@ -70,7 +71,7 @@ def ndcg(data, k, target, result_label,
 
         # Select comments for each submission
         comments = data[data.sid == sid]
-        if len(comments) == 0:
+        if len(comments) < min_comments: # skip trivial rankings
             skipped_submissions += 1
             continue
 
