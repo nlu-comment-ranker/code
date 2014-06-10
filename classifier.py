@@ -63,7 +63,9 @@ def train_optimal_classifier(train_data, train_y):
         'tol': [1e-1]}
     svr = SVR()
     cv_split = KFold(len(train_y), n_folds=10, random_state=42)
-    grid_search = GridSearchCV(svr, parameters, cv=cv_split, n_jobs=8)
+    grid_search = GridSearchCV(svr, parameters, 
+                               cv=cv_split, n_jobs=8,
+                               verbose=1)
     grid_search.fit(train_data, train_y)
 
     params = grid_search.best_params_ 
@@ -121,6 +123,7 @@ def main(args):
     ##
     # Run Grid Search / 10xv on training/dev set
     start = time.time()
+    print "== Finding optimal classifier using Grid Search =="
     params, svr = train_optimal_classifier(train_X, train_y)
     print params
     print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
