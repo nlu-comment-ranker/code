@@ -1,7 +1,9 @@
+#!/usr/bin/env python
+
 ##
 # Social Web Comment Ranking
 # CS224U Spring 2014
-# Stanford University 
+# Stanford University
 #
 # Feature Extraction
 # extraction engine
@@ -25,7 +27,7 @@ import commentDB
 # Feature library
 import features
 
-# Like itertools.chain, but doesn't 
+# Like itertools.chain, but doesn't
 # require eager argument expansion
 # at the top level
 def lazy_chain(listgen):
@@ -34,7 +36,7 @@ def lazy_chain(listgen):
             yield e
 
 # Functional take(l,n), evaluated lazily with generators
-def take_n(gen, n): 
+def take_n(gen, n):
     return (gen.next() for i in xrange(n))
 
 
@@ -61,10 +63,10 @@ def build_thread_VSMs(vsm_global):
     for pfs in vsm_global.parentFeatureSets:
         # Restrict to children in current dataset
         child_features = [c.featureSet for c in pfs.original.comments if hasattr(c, 'featureSet')]
-        
+
         # Initialize VSM
         pfs.vsm_thread = features.VSM(child_features)
-        # print "Submission %s: %d/%d comments loaded" % (pfs.original.sub_id, 
+        # print "Submission %s: %d/%d comments loaded" % (pfs.original.sub_id,
         #                                                 len(child_features),
         #                                                 len(pfs.original.comments))
         pfs.vsm_thread.index_featuresets(tag="_thread")
@@ -90,7 +92,7 @@ def calcGeneralFeatures(f, options, vsmTag_global="_global"):
             print >> options.logfile, "Missing user data for %s" % (f.self_id)
 
     f.calc_parent_rank_features()
-    
+
     # Distributional: require VSMs
     f.calc_entropy(vsmTag=vsmTag_global)
     f.calc_parent_overlap(vsmTag=vsmTag_global)
@@ -103,12 +105,12 @@ def calcLocalFeatures(f, options):
     f.tokenize()
     f.calc_token_counts()
     f.calc_SMOG()
-    
+
     # These are slow! Enable only if needed.
     if options.f_pos:
         f.pos_tag()
         f.calc_pos()
-    
+
     # Call this to recover memory!
     f.clean_temp()
 
@@ -135,7 +137,7 @@ def main(options):
     t0 = time.time()
     print ("== Loading comments for %d submissions ==" % sub_query.count())
     featureSets = []
-    
+
     t1 = time.time()
     counter = 0
     printevery = max(500, min(4000,int(0.8*sub_query.count())))
@@ -256,15 +258,15 @@ if __name__ == '__main__':
 
     ##
     # IO Options
-    parser.add_argument('--dbfile', dest='dbfile', 
+    parser.add_argument('--dbfile', dest='dbfile',
                         default='redditDB.sqlite',
                         help="SQLite database file")
 
-    parser.add_argument('--savename', dest='savename', 
+    parser.add_argument('--savename', dest='savename',
                         default='data',
                         help="Output file name. Extension (e.g. .h5) will be added automatically.")
 
-    # parser.add_argument('--saveas', dest='saveas', 
+    # parser.add_argument('--saveas', dest='saveas',
     #                     default='hdf',
     #                     help="Output file format.")
 
@@ -281,12 +283,12 @@ if __name__ == '__main__':
                         action='store_true',
                         help="Include POS-based features. Significantly increases computation time.")
 
-    parser.add_argument('--N_subs', dest='N_subs', 
+    parser.add_argument('--N_subs', dest='N_subs',
                         type=int, default=-1,
                         help="Number of submissions to include. If -1 (default), includes all subs.")
 
-    parser.add_argument('--logfile', 
-                        dest='logfile', 
+    parser.add_argument('--logfile',
+                        dest='logfile',
                         default=sys.stderr,
                         help="Filename for logging output")
 

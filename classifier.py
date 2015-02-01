@@ -1,7 +1,9 @@
+#!/usr/bin/env python
+
 ##
 # Social Web Comment Ranking
 # CS224U Spring 2014
-# Stanford University 
+# Stanford University
 #
 # Classifier Engine
 #
@@ -44,8 +46,8 @@ def split_data(data, limit_data=0, test_fraction=0.9):
         data = data[data.sid.map(lambda x: x in sids)]
 
     # Split along unique submission IDs
-    dev_sid, eval_sid = train_test_split(data.sid.unique(), 
-                                         test_size=test_fraction, 
+    dev_sid, eval_sid = train_test_split(data.sid.unique(),
+                                         test_size=test_fraction,
                                          random_state=42)
     dev_df = data[data.sid.map(lambda x: x in dev_sid)]
     eval_df = data[data.sid.map(lambda x: x in eval_sid)]
@@ -55,7 +57,7 @@ def split_data(data, limit_data=0, test_fraction=0.9):
 # Runs grid search to determine the best parameters to use for SVR
 def train_optimal_classifier(train_data, train_y):
     parameters = {
-        'kernel': ['rbf'], 
+        'kernel': ['rbf'],
         'C': [0.1, 1, 10, 100, 500],
         'degree': [0.5, 1, 2, 3, 4, 5],
         'gamma': [0.0],
@@ -63,12 +65,12 @@ def train_optimal_classifier(train_data, train_y):
         'tol': [1e-1]}
     svr = SVR()
     cv_split = KFold(len(train_y), n_folds=10, random_state=42)
-    grid_search = GridSearchCV(svr, parameters, 
+    grid_search = GridSearchCV(svr, parameters,
                                cv=cv_split, n_jobs=8,
                                verbose=1)
     grid_search.fit(train_data, train_y)
 
-    params = grid_search.best_params_ 
+    params = grid_search.best_params_
     estimator = grid_search.best_estimator_
     print 'Number of support vectors: %d' % len(estimator.support_vectors_)
     return params, estimator
@@ -77,12 +79,12 @@ def train_optimal_classifier(train_data, train_y):
 def main(args):
     # Load Data File
     data = pd.read_hdf(args.datafile, 'data')
-    
+
     print 'Original data dims: ' + str(data.shape)
     if args.list_features:
         print '\n'.join(data.columns.values)
         exit(0)
-    
+
     # Select Features and trim data so all features present
     feature_names = args.features
     data = clean_data(data, feature_names)
@@ -137,7 +139,7 @@ def main(args):
 
     max_K = 20
     eval_func = lambda data: evaluation.ndcg(data, max_K,
-                                             target=target, 
+                                             target=target,
                                              result_label=result_label,
                                              fav_func=favfunc)
 
@@ -150,7 +152,7 @@ def main(args):
     print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
     ndcg_train = eval_func(train_df)
     for i, score in enumerate(ndcg_train, start=1):
-        print '\tNDCG@%d: %.5f' % (i, score) 
+        print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(train_y, train_pred)
 
     ##
@@ -161,7 +163,7 @@ def main(args):
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
     ndcg_test = eval_func(test_df)
     for i, score in enumerate(ndcg_test, start=1):
-        print '\tNDCG@%d: %.5f' % (i, score) 
+        print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
     ##
@@ -177,7 +179,7 @@ def main(args):
     # Save data to HDF5
     if args.savename:
         # Concatenate train, test
-        df = pd.concat([train_df, test_df], 
+        df = pd.concat([train_df, test_df],
                        ignore_index=True)
 
         print "== Exporting data to HDF5 =="
@@ -199,29 +201,29 @@ if __name__ == '__main__':
 
     parser.add_argument('datafile', type=str, help='HDF5 data file')
 
-    parser.add_argument('-s', '--savename', dest='savename', 
+    parser.add_argument('-s', '--savename', dest='savename',
                         default=None,
                         help="Name to save model and results. Extensions (.model.pkl and .data.h5) will be added.")
 
-    parser.add_argument('-f', '--features', type=str, 
+    parser.add_argument('-f', '--features', type=str,
                         nargs='+', help='Features list')
 
     parser.add_argument('-t', '--target', dest='target',
                         type=str, default='score',
                         help="Training objective (e.g. score)")
 
-    parser.add_argument('-l', '--list-features', action='store_true', default=False,
+    parser.add_argument('--list-features', action='store_true', default=False,
                         help='Show possible features', dest='list_features')
 
-    parser.add_argument('-L', '--limit-data', dest='limit_data', 
+    parser.add_argument('-l', '-L', '--limit-data', dest='limit_data',
                         default=0, type=int,
                         help="Limit to # of submissions")
 
-    parser.add_argument('--tf', dest='test_fraction', 
+    parser.add_argument('--tf', dest='test_fraction',
                         default=0.9, type=float,
                         help="Fraction to reserve for testing")
 
-    parser.add_argument('--n_weight', dest='ndcg_weight', 
+    parser.add_argument('--n_weight', dest='ndcg_weight',
                         default='target', type=str,
                         help="""
                         Weighting option for NDCG calculation.
