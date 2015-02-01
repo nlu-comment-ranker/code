@@ -12,6 +12,8 @@
 # June 2, 2014
 ##
 
+import os, sys, re, json
+from os.path import join as pathcat
 from argparse import ArgumentParser
 from sklearn.grid_search import GridSearchCV
 from sklearn.svm import SVR
@@ -28,6 +30,28 @@ import random
 # Evaluation Functions
 import evaluation
 
+# Find files in this folder
+def dummy(): pass
+import inspect
+THIS_DIR = os.path.dirname(inspect.getsourcefile(dummy))
+# print >> sys.stderr, "Called from %s" % THIS_DIR # DEBUG
+
+GRIDSEARCH_PARAMS = {
+    "svr": {
+        "kernel": ["rbf"],
+        "C": [0.1, 1, 10, 100, 500],
+        "degree": [0.5, 1, 2, 3, 4, 5],
+        "gamma": [0.0],
+        "epsilon": [0.1],
+        "tol": [1e-1]
+        },
+    "rf": {
+        "n_estimators": [10, 30, 100],
+        "criterion": ["mse"],
+        "max_features": ["auto"],
+        "max_depth": [5, 10, 20]
+    }
+}
 
 # Removes rows with NaN or inf in specified columns
 def clean_data(data, columns):
@@ -55,17 +79,30 @@ def split_data(data, limit_data=0, test_fraction=0.9):
 
 
 # Runs grid search to determine the best parameters to use for SVR
-def train_optimal_classifier(train_data, train_y):
-    parameters = {
-        'kernel': ['rbf'],
-        'C': [0.1, 1, 10, 100, 500],
-        'degree': [0.5, 1, 2, 3, 4, 5],
-        'gamma': [0.0],
-        'epsilon': [0.1],
-        'tol': [1e-1]}
-    svr = SVR()
+def train_optimal_classifier(train_data, train_y, classifier='svr'):
+    # parameters = {
+    #     'kernel': ['rbf'],
+    #     'C': [0.1, 1, 10, 100, 500],
+    #     'degree': [0.5, 1, 2, 3, 4, 5],
+    #     'gamma': [0.0],
+    #     'epsilon': [0.1],
+    #     'tol': [1e-1]}
+    if classifier == 'svr':
+        clf = SVR()
+        parameters = GRIDSEARCH_PARAMS['svr']
+    elif classifier == 'rf':
+        clf = RandomForestRegressor()
+        parameters = GRIDSEARCH_PARAMS['rf']
+    else:
+        raise ValueError("Invalid classifier '%s' specified." % classifier)
+
+    print "Grid search with model '%s'" % classifier
+    print "over parameters:"
+    print parameters
+
+    clf = SVR()
     cv_split = KFold(len(train_y), n_folds=10, random_state=42)
-    grid_search = GridSearchCV(svr, parameters,
+    grid_search = GridSearchCV(clf, parameters,
                                cv=cv_split, n_jobs=8,
                                verbose=1)
     grid_search.fit(train_data, train_y)
@@ -126,7 +163,8 @@ def main(args):
     # Run Grid Search / 10xv on training/dev set
     start = time.time()
     print "== Finding optimal classifier using Grid Search =="
-    params, svr = train_optimal_classifier(train_X, train_y)
+    params, clf = train_optimal_classifier(train_X, train_y,
+                                           classifier=args.classifier)
     print params
     print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
 
@@ -146,7 +184,7 @@ def main(args):
     ##
     # Predict scores for training set
     result_label = "pred_%s" % target # e.g. pred_score
-    train_pred = svr.predict(train_X)
+    train_pred = clf.predict(train_X)
     train_df[result_label] = train_pred
 
     print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
@@ -157,7 +195,7 @@ def main(args):
 
     ##
     # Predict scores for test set
-    test_pred = svr.predict(test_X)
+    test_pred = clf.predict(test_X)
     test_df[result_label] = test_pred
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
@@ -173,19 +211,29 @@ def main(args):
         saveas = args.savename + ".model.pkl"
         print "== Saving model as %s ==" % saveas
         with open(saveas, 'w') as f:
-            pickle.dump(svr, f)
+            pickle.dump(clf, f)
 
     ##
     # Save data to HDF5
     if args.savename:
-        # Concatenate train, test
-        df = pd.concat([train_df, test_df],
-                       ignore_index=True)
 
-        print "== Exporting data to HDF5 =="
-        saveas = args.savename + ".data.h5"
-        df.to_hdf(saveas, "data")
-        print "  [saved as %s]" % saveas
+        # Save score predictions
+        fields = ["self_id", "parent_id", target, result_label]
+        saveas = [args.savename + ".train.scores.csv",
+                  args.savename + ".test.scores.csv"]
+        print "== Saving raw predictions as %s, %s ==" % tuple(saveas)
+        train_df[fields].to_csv(saveas[0])
+        test_df[fields].to_csv(saveas[1])
+
+        if args.savefull:
+            # Concatenate train, test
+            df = pd.concat([train_df, test_df],
+                           ignore_index=True)
+
+            print "== Exporting data to HDF5 =="
+            saveas = args.savename + ".data.h5"
+            df.to_hdf(saveas, "data")
+            print "  [saved as %s]" % saveas
 
         # Save NDCG calculations
         dd = {'k':range(1,max_K+1), 'method':[args.ndcg_weight]*max_K,
@@ -205,12 +253,20 @@ if __name__ == '__main__':
                         default=None,
                         help="Name to save model and results. Extensions (.model.pkl and .data.h5) will be added.")
 
+    parser.add_argument('--savefull', dest='savefull',
+                        action="store_true",
+                        help="Save full train/test set with predictions (WARNING: uses a lot of disk space).")
+
     parser.add_argument('-f', '--features', type=str,
                         nargs='+', help='Features list')
 
     parser.add_argument('-t', '--target', dest='target',
                         type=str, default='score',
                         help="Training objective (e.g. score)")
+
+    parser.add_argument('-c', '--classifier', default='svr',
+                        type=str, choices=['svr', 'rf'],
+                        help="Classifier (SVR or Random Forest).")
 
     parser.add_argument('--list-features', action='store_true', default=False,
                         help='Show possible features', dest='list_features')

@@ -219,6 +219,10 @@ if __name__ == '__main__':
                         default='redditDB.sqlite',
                         help="SQLite database file to save output. Will accumulate if file exists.")
 
+    parser.add_argument('--scrape-existing-users',
+                        dest='scrape_existing_users',
+                        action='store_true')
+
     # Optionally, scrape user posts / metadata
     parser.add_argument('--scrape-users',
                         dest='scrape_users',
@@ -238,21 +242,28 @@ if __name__ == '__main__':
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    subreddit_models = {}
     users = set()
-    sr_global = commentDB.Subreddit(subreddit_id='GLOBAL', name='GLOBAL')
-    add_model(sr_global, session)
-    subreddit_models['GLOBAL'] = sr_global
+    subreddit_models = {}
+    if args.scrape_existing_users:
+        for user in session.query(commentDB.User.name):
+            users.add(user[0])
+        for subreddit in session.query(commentDB.Subreddit):
+            subreddit_models[subreddit.name] = subreddit
+        load_users(r, users, subreddit_models, session) 
+    else:
+        sr_global = commentDB.Subreddit(subreddit_id='GLOBAL', name='GLOBAL')
+        add_model(sr_global, session)
+        subreddit_models['GLOBAL'] = sr_global
 
-    # Initialize subreddit object
-    subreddit = r.get_subreddit(args.subreddit)
-    subreddit_model = commentDB.Subreddit(subreddit)
-    subreddit_models[args.subreddit] = subreddit_model
-    add_model(subreddit_model, session)
+        # Initialize subreddit object
+        subreddit = r.get_subreddit(args.subreddit)
+        subreddit_model = commentDB.Subreddit(subreddit)
+        subreddit_models[args.subreddit] = subreddit_model
+        add_model(subreddit_model, session)
 
-    # Scrape subreddit
-    load_subreddit(subreddit, users, session, flairs=args.flair)
+        # Scrape subreddit
+        load_subreddit(subreddit, users, session, flairs=args.flair)
 
-    # Scrape users
-    if args.scrape_users:
-        load_users(r, users, subreddit_models, session)
+        # Scrape users
+        if args.scrape_users:
+            load_users(r, users, subreddit_models, session)
