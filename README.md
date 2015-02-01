@@ -1,4 +1,9 @@
-features
-========
+NLU Comment Ranker
+==================
 
-Feature extraction engine. Defines a FeatureSet object, and methods to populate it from commentDB objects (from scraper).
+Unified codebase, containing:
+
+- scraper : reddit scraper, using PRAW
+- features : feature extraction engine
+- classifier : ML modeling code
+
