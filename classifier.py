@@ -17,6 +17,7 @@ from os.path import join as pathcat
 from argparse import ArgumentParser
 from sklearn.grid_search import GridSearchCV
 from sklearn.svm import SVR
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
 from sklearn import preprocessing
@@ -100,7 +101,6 @@ def train_optimal_classifier(train_data, train_y, classifier='svr'):
     print "over parameters:"
     print parameters
 
-    clf = SVR()
     cv_split = KFold(len(train_y), n_folds=10, random_state=42)
     grid_search = GridSearchCV(clf, parameters,
                                cv=cv_split, n_jobs=8,
@@ -108,9 +108,8 @@ def train_optimal_classifier(train_data, train_y, classifier='svr'):
     grid_search.fit(train_data, train_y)
 
     params = grid_search.best_params_
-    estimator = grid_search.best_estimator_
-    print 'Number of support vectors: %d' % len(estimator.support_vectors_)
-    return params, estimator
+    clfopt = grid_search.best_estimator_
+    return params, clfopt
 
 
 def main(args):
@@ -165,7 +164,9 @@ def main(args):
     print "== Finding optimal classifier using Grid Search =="
     params, clf = train_optimal_classifier(train_X, train_y,
                                            classifier=args.classifier)
-    print params
+    print "Optimal parameters: " + json.dumps(params, indent=4)
+    if hasattr(clf, "support_vectors_"):
+        print 'Number of support vectors: %d' % len(clf.support_vectors_)
     print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
 
     ##
@@ -219,8 +220,8 @@ def main(args):
 
         # Save score predictions
         fields = ["self_id", "parent_id", target, result_label]
-        saveas = [args.savename + ".train.scores.csv",
-                  args.savename + ".test.scores.csv"]
+        saveas = [args.savename + ".scores.train.csv",
+                  args.savename + ".scores.test.csv"]
         print "== Saving raw predictions as %s, %s ==" % tuple(saveas)
         train_df[fields].to_csv(saveas[0])
         test_df[fields].to_csv(saveas[1])
