@@ -123,7 +123,7 @@ def main(args):
     for fname in args.feature_names:
         feature_names.add(fname)
     feature_names = sorted(list(feature_names))
-    print "Using features: \n" + "\n".join(feature_names)
+    print "Using features: \n  " + "\n  ".join(feature_names)
 
     data = clean_data(data, feature_names)
     print 'Cleaned data dims: ' + str(data.shape)
