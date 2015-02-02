@@ -37,22 +37,10 @@ import inspect
 THIS_DIR = os.path.dirname(inspect.getsourcefile(dummy))
 # print >> sys.stderr, "Called from %s" % THIS_DIR # DEBUG
 
-GRIDSEARCH_PARAMS = {
-    "svr": {
-        "kernel": ["rbf"],
-        "C": [0.1, 1, 10, 100, 500],
-        "degree": [0.5, 1, 2, 3, 4, 5],
-        "gamma": [0.0],
-        "epsilon": [0.1],
-        "tol": [1e-1]
-        },
-    "rf": {
-        "n_estimators": [10, 30, 100],
-        "criterion": ["mse"],
-        "max_features": ["auto"],
-        "max_depth": [5, 10, 20]
-    }
-}
+# Configuration options
+import settings
+GRIDSEARCH_PARAMS = settings.GRIDSEARCH_PARAMS
+FEATURE_GROUPS = settings.FEATURE_GROUPS
 
 # Removes rows with NaN or inf in specified columns
 def clean_data(data, columns):
@@ -80,7 +68,9 @@ def split_data(data, limit_data=0, test_fraction=0.9):
 
 
 # Runs grid search to determine the best parameters to use for SVR
-def train_optimal_classifier(train_data, train_y, classifier='svr'):
+def train_optimal_classifier(train_data, train_y,
+                             classifier='svr',
+                             quickmode=False):
     # parameters = {
     #     'kernel': ['rbf'],
     #     'C': [0.1, 1, 10, 100, 500],
@@ -99,9 +89,14 @@ def train_optimal_classifier(train_data, train_y, classifier='svr'):
 
     print "Grid search with model '%s'" % classifier
     print "over parameters:"
-    print parameters
+    print json.dumps(parameters, indent=4)
 
-    cv_split = KFold(len(train_y), n_folds=10, random_state=42)
+    if quickmode:   n_folds = 3
+    else:           n_folds = 10
+
+    cv_split = KFold(len(train_y),
+                     n_folds=n_folds,
+                     random_state=42)
     grid_search = GridSearchCV(clf, parameters,
                                cv=cv_split, n_jobs=8,
                                verbose=1)
@@ -122,7 +117,14 @@ def main(args):
         exit(0)
 
     # Select Features and trim data so all features present
-    feature_names = args.features
+    feature_names = set()
+    for fgname in args.feature_groups:
+        feature_names.update(FEATURE_GROUPS[fgname])
+    for fname in args.feature_names:
+        feature_names.add(fname)
+    feature_names = sorted(list(feature_names))
+    print "Using features: \n" + "\n".join(feature_names)
+
     data = clean_data(data, feature_names)
     print 'Cleaned data dims: ' + str(data.shape)
 
@@ -163,7 +165,8 @@ def main(args):
     start = time.time()
     print "== Finding optimal classifier using Grid Search =="
     params, clf = train_optimal_classifier(train_X, train_y,
-                                           classifier=args.classifier)
+                                           classifier=args.classifier,
+                                           quickmode=args.quickmode)
     print "Optimal parameters: " + json.dumps(params, indent=4)
     if hasattr(clf, "support_vectors_"):
         print 'Number of support vectors: %d' % len(clf.support_vectors_)
@@ -258,8 +261,19 @@ if __name__ == '__main__':
                         action="store_true",
                         help="Save full train/test set with predictions (WARNING: uses a lot of disk space).")
 
+    parser.add_argument("-q", "--quickmode",
+                        dest="quickmode",
+                        action="store_true",
+                        help="Quick mode for testing.")
+
     parser.add_argument('-f', '--features', type=str,
+                        dest="feature_names", default=[],
                         nargs='+', help='Features list')
+
+    parser.add_argument("--fg", "--featuregroup", type=str,
+                        dest="feature_groups",
+                        nargs="+", default=[],
+                        help="Pre-specified feature groups, as given in settings.py")
 
     parser.add_argument('-t', '--target', dest='target',
                         type=str, default='score',
