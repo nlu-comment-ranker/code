@@ -5,7 +5,7 @@ import commentDB
 from argparse import ArgumentParser
 from datetime import datetime
 from collections import defaultdict
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, distinct
 from sqlalchemy.orm import relation, sessionmaker
 from requests.exceptions import HTTPError
 from time import sleep
@@ -39,15 +39,18 @@ def _build_summary_stats(stats):
 #   --  another flaw: these stats don't reflect stats at time of posting
 def user_stats(gen, subreddits):
     stats = defaultdict(lambda: defaultdict(int))
-    for obj in gen:
-        obj_subreddit = obj.subreddit.display_name
-        if obj_subreddit in subreddits:
-            stats[obj_subreddit]['count'] += 1
-            stats[obj_subreddit]['pos_karma'] += obj.ups
-            stats[obj_subreddit]['neg_karma'] += obj.downs
-        stats['GLOBAL']['count'] += 1
-        stats['GLOBAL']['pos_karma'] += obj.ups
-        stats['GLOBAL']['neg_karma'] += obj.downs
+    try:
+        for obj in gen:
+            obj_subreddit = obj.subreddit.display_name
+            if obj_subreddit in subreddits:
+                stats[obj_subreddit]['count'] += 1
+                stats[obj_subreddit]['pos_karma'] += obj.ups
+                stats[obj_subreddit]['neg_karma'] += obj.downs
+            stats['GLOBAL']['count'] += 1
+            stats['GLOBAL']['pos_karma'] += obj.ups
+            stats['GLOBAL']['neg_karma'] += obj.downs
+    except HTTPError as e:
+        return None
 
     for subreddit in subreddits:
         _build_summary_stats(stats[subreddit])
@@ -65,6 +68,10 @@ def load_users(r, users, subreddit_models, session):
             user_stats(user.get_comments(limit=None), subreddit_models)
         submission_stats = \
             user_stats(user.get_submitted(limit=None), subreddit_models)
+
+        if comment_stats is None or submission_stats is None:
+            print('Error retrieving stats for %s' % username) 
+            continue
 
         user_model = commentDB.User(user)
         merge_model(user_model, session)
@@ -249,6 +256,15 @@ if __name__ == '__main__':
             users.add(user[0])
         for subreddit in session.query(commentDB.Subreddit):
             subreddit_models[subreddit.name] = subreddit
+
+        # skip users we've already loaded activity for
+        count_distinct_stats = func.count(distinct(commentDB.UserActivity.user_name + commentDB.UserActivity.subreddit_name))
+        existing_activities = session.\
+                query(commentDB.UserActivity.user_name, count_distinct_stats).\
+                group_by(commentDB.UserActivity.user_name)
+        for username, count in existing_activities:
+            if count == len(subreddit_models):
+                users.remove(username)
         load_users(r, users, subreddit_models, session) 
     else:
         sr_global = commentDB.Subreddit(subreddit_id='GLOBAL', name='GLOBAL')
