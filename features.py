@@ -1,7 +1,7 @@
 ##
 # Social Web Comment Ranking
 # CS224U Spring 2014
-# Stanford University 
+# Stanford University
 #
 # Feature Extraction
 # methods and classes
@@ -34,7 +34,7 @@ import text_pre
 # Static Helper Functions #
 ###########################
 
-# Like itertools.chain, but doesn't 
+# Like itertools.chain, but doesn't
 # require eager argument expansion
 # at the top level
 def lazy_chain(listgen):
@@ -61,7 +61,7 @@ def SMOG(words, sentences):
 # Distributional models
 
 def entropy_normalized(v):
-    """Calculate the length-normalized entropy 
+    """Calculate the length-normalized entropy
     of a (sparse) word distribution vector."""
     if v.nnz < 1: return 0 # in case of empty comment
 
@@ -92,19 +92,19 @@ def sparse_row_jaccard_similarity(v1,v2):
 def rank_comments(sub):
     if hasattr(sub, 'comments_ranked') and sub.comments_ranked:
         return
-    
+
     # Rank comments by timestamp: get position_rank
     sub.comments.sort(key=lambda c: c.timestamp)
-    for i,c in enumerate(sub.comments): 
+    for i,c in enumerate(sub.comments):
         c.position_rank = i
 
     # Rank comments by score, high -> low
     # get score rank
     sub.comments.sort(key=lambda c: c.score, reverse=True)
-    for i,c in enumerate(sub.comments): 
+    for i,c in enumerate(sub.comments):
         c.score_rank = i
 
-    sub.comments_ranked = True    
+    sub.comments_ranked = True
 
 def init_featureset(obj):
     if hasattr(obj, 'featureSet'):
@@ -144,13 +144,13 @@ class VSM(object):
 
         # All comment texts
         self.texts = [get_text(f.original, cat_title=True) for f in self.featureSets]
-        
+
         # Collect unique parents
         parents_unique = list({f.parent for f in self.featureSets})
-        for p in parents_unique: 
+        for p in parents_unique:
             init_featureset(p)
         self.parentFeatureSets = [p.featureSet for p in parents_unique]
-        
+
         # All parent texts
         self.parent_texts = [get_text(p.original, cat_title=True) for p in self.parentFeatureSets]
 
@@ -176,14 +176,14 @@ class VSM(object):
         with both self.tag and vsm.tag."""
         allfeatures = self.featureSets + self.parentFeatureSets
         rows = [vsm.wcMatrix[vsm.get_row_index(f)] for f in allfeatures]
-        
+
         # Build a new wcMatrix from existing rows
         # TO-DO: convert all matricies to CSR
         self.wcMatrix = sparse.vstack(rows, format='csr')
 
 
     def build_VSM(self, tokenizer=text_pre.default_tokenizer, **voptions):
-        """Generate a VSM in sparse matrix format, 
+        """Generate a VSM in sparse matrix format,
         consisting of word frequencies for each text."""
         self.vectorizer = CountVectorizer(tokenizer=tokenizer,
                                           **voptions)
@@ -217,19 +217,23 @@ def fs_to_DataFrame(featureSets):
     """Convert a list of FeatureSet objects to
     a pandas DataFrame, for convenient analysis
     and passing to ML routines."""
-    colnames = (FeatureSet.vars_feature_all 
+    colnames = (FeatureSet.vars_feature_all
             + FeatureSet.vars_label)
     # Convert to DataFrame directly to avoid NumPy's homogeneous type requirement
-    df = pd.DataFrame([f.to_list(colnames) for f in featureSets], 
+    df = pd.DataFrame([f.to_list(colnames) for f in featureSets],
                       columns=colnames)
     return df
 
 def derive_features(df):
     """Compute derivative features from the DataFrame representation."""
-    
+
     # Normalize score by the parent submission score
     df['score_normalized'] = df['score'] / abs(df['parent_score'])
-    
+
+    # Log transform
+    df['log_score'] = df['score'].map(log)
+    df['log_score_normalized'] = df['score_normalized'].map(log)
+
     # Normalize score rank to a 0-1 scale
     # by the number of comments in a thread
     # 0 = highest, 1 = lowest
@@ -281,7 +285,7 @@ class FeatureSet(object):
     # e.g. score, corrected for post time
 
     ##
-    # Intermediate/temporary features; 
+    # Intermediate/temporary features;
     # delete these to save memory
     vars_temp = ['sentences',
                  'words',
@@ -295,7 +299,7 @@ class FeatureSet(object):
     # Text Features                     #
     #####################################
     # should all be numerical (or None)
-    vars_feature_text = ['n_chars',                    
+    vars_feature_text = ['n_chars',
                          'n_words',
                          'n_sentences',
                          'n_paragraphs',
@@ -318,7 +322,7 @@ class FeatureSet(object):
                          ]
 
     ##
-    # Context-based features 
+    # Context-based features
     vars_feature_context = ['timedelta',
                             'position_rank',
                             'parent_term_overlap',
@@ -372,16 +376,16 @@ class FeatureSet(object):
                               ]
 
     # List of all features, for convenience
-    vars_feature_all = (vars_feature_text 
+    vars_feature_all = (vars_feature_text
                         + vars_feature_context
                         + vars_feature_metadata
                         + vars_feature_user_meta
-                        + vars_feature_user_local 
+                        + vars_feature_user_local
                         + vars_feature_user_global)
 
     def __init__(self, original, parent=None, user=None):
         """
-        Basic constructor. Initializes references 
+        Basic constructor. Initializes references
         to comment object (original) and parent,
         and sets other fields to None.
         """
@@ -463,7 +467,7 @@ class FeatureSet(object):
         elif ua.subreddit_id == self.original.subreddit_id:
             # Local (matching this comment)
             name_prefixer = local_prefixer
-        else: 
+        else:
             msg = "Error: subreddit id \"%s\" does not match expected (GLOBAL or \"%s\"." % (ua.subreddit_id, self.original.subreddit_id)
             raise ActivityParseError(msg)
 
@@ -512,7 +516,7 @@ class FeatureSet(object):
     # PunktSentenceTokenizer (pre-trained) for sentences
     # TreebankWordTokenizer for words (per-sentence)
     # from nltk.tokenize import word_tokenize, sent_tokenize
-    def tokenize(self, 
+    def tokenize(self,
                  sent_tokenize = text_pre.sent_tokenize,
                  word_tokenize = text_pre.word_tokenize,
                  wf = text_pre.wordfilter,
@@ -529,7 +533,7 @@ class FeatureSet(object):
 
         words = (word_tokenize(s) for s in self.sentences) # lazy generator
         words_filtered = (w for w in lazy_chain(words) if wf(w)) # lazy generator
-        
+
         self.words = [word_tokenize(t) for t in self.sentences]
         # self.wordCounts = Counter(itertools.chain(*self.words))
         self.wordCounts = Counter(lazy_chain(self.words))
@@ -555,7 +559,7 @@ class FeatureSet(object):
         self.n_uppercase = sum([c for w,c in self.wordCounts.iteritems() if w[0].isupper()])
 
         # Count special tokens
-        def count_tokens(list): 
+        def count_tokens(list):
             return sum([v for k,v in self.wordCounts.iteritems() if k in list])
         self.tok_n_links = count_tokens(["__URL_TAG__", "__LINK_TAG__"])
         self.tok_n_emph = count_tokens(["__BOLD__", "__ITAL__"])

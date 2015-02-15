@@ -107,43 +107,17 @@ def train_optimal_classifier(train_data, train_y,
     return params, clfopt
 
 
-def main(args):
-    # Load Data File
-    data = pd.read_hdf(args.datafile, 'data')
+def standard_experiment(train_df, test_df, feature_names, args):
 
-    print 'Original data dims: ' + str(data.shape)
-    if args.list_features:
-        print '\n'.join(data.columns.values)
-        exit(0)
-
-    # Select Features and trim data so all features present
-    feature_names = set()
-    for fgname in args.feature_groups:
-        feature_names.update(FEATURE_GROUPS[fgname])
-    for fname in args.feature_names:
-        feature_names.add(fname)
-    feature_names = sorted(list(feature_names))
-    print "Using features: \n  " + "\n  ".join(feature_names)
-
-    data = clean_data(data, feature_names)
-    print 'Cleaned data dims: ' + str(data.shape)
-
-    # Split into train, test
-    # and select training target
-    target = args.target
-    train_df, test_df = split_data(data, args.limit_data,
-                                   args.test_fraction)
     train_df['set'] = "train" # annotate
     test_df['set'] = "test" # annotate
 
     # Split into X, y for regression
+    target = args.target
     train_X = train_df.filter(feature_names).as_matrix().astype(np.float) # training data
     train_y = train_df.filter([target]).as_matrix().astype(np.float) # training labels
     test_X = test_df.filter(feature_names).as_matrix().astype(np.float) # test data
     test_y = test_df.filter([target]).as_matrix().astype(np.float) # ground truth
-
-    # import pdb
-    # pdb.set_trace()
 
     # For compatibility, make 1D
     train_y = train_y.reshape((-1,))
@@ -181,13 +155,13 @@ def main(args):
 
     max_K = 20
     eval_func = lambda data: evaluation.ndcg(data, max_K,
-                                             target=target,
+                                             target=args.target,
                                              result_label=result_label,
                                              fav_func=favfunc)
 
     ##
     # Predict scores for training set
-    result_label = "pred_%s" % target # e.g. pred_score
+    result_label = "pred_%s" % args.target # e.g. pred_score
     train_pred = clf.predict(train_X)
     train_df[result_label] = train_pred
 
@@ -222,7 +196,7 @@ def main(args):
     if args.savename:
 
         # Save score predictions
-        fields = ["self_id", "parent_id", target, result_label]
+        fields = ["self_id", "parent_id", args.target, result_label]
         saveas = [args.savename + ".scores.train.csv",
                   args.savename + ".scores.test.csv"]
         print "== Saving raw predictions as %s, %s ==" % tuple(saveas)
@@ -248,10 +222,68 @@ def main(args):
         resdf.to_csv(saveas)
 
 
+def prep_data_standard(data, feature_names, args):
+
+    data = clean_data(data, feature_names)
+    print 'Cleaned data dims: ' + str(data.shape)
+
+    # Split into train, test
+    # and select training target
+    target = args.target
+    train_df, test_df = split_data(data, args.limit_data,
+                                   args.test_fraction)
+    return train_df, test_df
+
+
+def prep_data_crossdomain(data_train, data_test, feature_names, args):
+    data_train = clean_data(data_train, feature_names)
+    print 'TRAIN: Cleaned data dims: ' + str(data_train.shape)
+
+    data_test = clean_data(data_test, feature_names)
+    print 'TEST: Cleaned data dims: ' + str(data_test.shape)
+
+    train_df = data_train
+    test_df = data_test
+    return train_df, test_df
+
+
+def main(args):
+
+    # Load Data File
+    data = pd.read_hdf(args.datafile, 'data')
+
+    print 'Original data dims: ' + str(data.shape)
+    if args.list_features:
+        print '\n'.join(data.columns.values)
+        exit(0)
+
+    # Select Features and trim data so all features present
+    feature_names = set()
+    for fgname in args.feature_groups:
+        feature_names.update(FEATURE_GROUPS[fgname])
+    for fname in args.feature_names:
+        feature_names.add(fname)
+    feature_names = sorted(list(feature_names))
+    print "Using features: \n  " + "\n  ".join(feature_names)
+
+    if args.crossdomain == "":
+        train_df, test_df = prep_data_standard(data, feature_names, args)
+        standard_experiment(train_df, test_df, feature_names, args)
+    else:
+        data_x = pd.read_df(args.crossdomain, 'data')
+        train_df, test_df = prep_data_crossdomain(data, data_x, feature_names, args)
+        standard_experiment(train_df, test_df, feature_names, args)
+
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Run SVR')
 
-    parser.add_argument('datafile', type=str, help='HDF5 data file')
+    parser.add_argument('datafile', type=str,
+                        help='HDF5 data file')
+
+    parser.add_argument('--crossdomain', type=str,
+                        default="",
+                        help='Cross-domain test dataset')
 
     parser.add_argument('-s', '--savename', dest='savename',
                         default=None,
