@@ -70,7 +70,7 @@ def load_users(r, users, subreddit_models, session):
             user_stats(user.get_submitted(limit=None), subreddit_models)
 
         if comment_stats is None or submission_stats is None:
-            print('Error retrieving stats for %s' % username) 
+            print('Error retrieving stats for %s' % username)
             continue
 
         user_model = commentDB.User(user)
@@ -109,7 +109,8 @@ def load_comments(comments, users, session):
         add_model(comment_model, session)
 
 
-def load_subreddit(subreddit, users, session, flairs=None):
+def load_subreddit(subreddit, users, session, flairs=None,
+                   replace_limit = None):
     # flairs = ['Physics', 'Maths', 'Astro', 'Computing', 'Geo',
     #           'Eng', 'Chem', 'Soc', 'Bio', 'Psych', 'Med', 'Neuro']
 
@@ -142,7 +143,7 @@ def load_subreddit(subreddit, users, session, flairs=None):
 
             # print submission.comments # DEBUG
             success = safe_praw_call(lambda: \
-                                     submission.replace_more_comments(limit=None,
+                                     submission.replace_more_comments(limit=replace_limit,
                                                                      threshold=0)
                                      )
             if success is False:
@@ -226,6 +227,10 @@ if __name__ == '__main__':
                         default='redditDB.sqlite',
                         help="SQLite database file to save output. Will accumulate if file exists.")
 
+    parser.add_argument('--replace_limit', dest='replace_limit',
+                        default=None, type=int,
+                        help="Maximum number of comments to retrieve per submission.")
+
     parser.add_argument('--scrape-existing-users',
                         dest='scrape_existing_users',
                         action='store_true')
@@ -265,7 +270,7 @@ if __name__ == '__main__':
         for username, count in existing_activities:
             if count == len(subreddit_models):
                 users.remove(username)
-        load_users(r, users, subreddit_models, session) 
+        load_users(r, users, subreddit_models, session)
     else:
         sr_global = commentDB.Subreddit(subreddit_id='GLOBAL', name='GLOBAL')
         add_model(sr_global, session)
@@ -278,7 +283,8 @@ if __name__ == '__main__':
         add_model(subreddit_model, session)
 
         # Scrape subreddit
-        load_subreddit(subreddit, users, session, flairs=args.flair)
+        load_subreddit(subreddit, users, session, flairs=args.flair,
+                       replace_limit = args.replace_limit)
 
         # Scrape users
         if args.scrape_users:
