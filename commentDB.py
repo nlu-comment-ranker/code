@@ -73,7 +73,6 @@ class Submission(Base):
     sub_id = Column(String, primary_key=True)   # reddit submission ID
     subreddit_id = Column(String, ForeignKey('subreddits.subreddit_id'))           # reddit subreddit ID
     timestamp = Column(DateTime)            # post time
-    flair = Column(String)
 
     # Set up one->many relationship with comments
     comments = relation("Comment", backref="submission")
@@ -108,7 +107,6 @@ class Submission(Base):
         self.user_name = get_author_name(s)     # reddit author.name
         self.subreddit_id = s.subreddit_id      # subreddit identifier
         self.timestamp = datetime.utcfromtimestamp(s.created_utc)
-        self.flair = s.link_flair_text
 
         self.title = s.title
         self.text = s.selftext   # might need to do s.selftext.encode('ascii', 'ignore')

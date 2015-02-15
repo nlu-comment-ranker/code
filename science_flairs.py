@@ -7,9 +7,6 @@ from sqlalchemy import create_engine, func, distinct
 from sqlalchemy.orm import relation, sessionmaker
 from requests.exceptions import HTTPError
 
-# ALTER TABLE submissions ADD COLUMN flair VARCHAR;
-# PRAGMA table_info(submissions);
-
 if __name__ == '__main__':
     parser = ArgumentParser(description='Scrape flair of Reddit self-posts')
     parser.add_argument('-u', '--username', type=str,
@@ -21,6 +18,9 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dbfile', type=str,
                         default='redditDB-jun6.db',
                         help="SQLite database file to read")
+    parser.add_argument('-o', '--output', type=str,
+                        default='flairs.csv',
+                        help='File to write flairs to')
 
     args = parser.parse_args()
 
@@ -42,9 +42,7 @@ if __name__ == '__main__':
         flair = submission.link_flair_text
         flair_map[reddit_id] = flair
 
-    for reddit_id in flair_map:
-        session.query(commentDB.Submission).\
-            filter(commentDB.Submission.sub_id == reddit_id).\
-            update({commentDB.Submission.flair: flair_map[reddit_id]}, synchronize_session=False)
-    session.commit()
+    with open(args.output, 'w') as f:
+        for sub_id in flair_map:
+            f.write('%s,%s\n' % (reddit_id, flair_map[reddit_id]))
 
