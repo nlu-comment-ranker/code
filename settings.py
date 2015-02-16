@@ -193,7 +193,7 @@ FG_CUSTOM = {
         "user_global_sub_count",
         "user_global_sub_net_karma",
         "user_global_sub_avg_net_karma"
-        ]
+        ],
     "all-june": [
         "n_chars",
         "n_words",
