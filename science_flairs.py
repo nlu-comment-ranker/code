@@ -40,9 +40,10 @@ if __name__ == '__main__':
         submission_id = reddit_id.split('_')[1]  # cut off 't3_'
         submission = r.get_submission(submission_id=submission_id)
         flair = submission.link_flair_text
+        print reddit_id, flair
         flair_map[reddit_id] = flair
 
     with open(args.output, 'w') as f:
         for sub_id in flair_map:
-            f.write('%s,%s\n' % (reddit_id, flair_map[reddit_id]))
+            f.write('%s,%s\n' % (sub_id, flair_map[sub_id]))
 
