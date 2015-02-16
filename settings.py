@@ -16,6 +16,10 @@ GRIDSEARCH_PARAMS = {
         "criterion": ["mse"],
         "max_features": ["auto"],
         "max_depth": [5, 10, 20]
+    },
+    "elasticnet": {
+        "alpha": [0.1, 1, 10, 100, 500],
+        "l1_ratio": [0, 0.1, 0.5, 0.7, 0.9, 0.95, 0.99, 1]
     }
 }
 

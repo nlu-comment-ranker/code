@@ -18,6 +18,7 @@ from argparse import ArgumentParser
 from sklearn.grid_search import GridSearchCV
 from sklearn.svm import SVR
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import ElasticNet
 from sklearn.cross_validation import train_test_split
 from sklearn.cross_validation import KFold
 from sklearn import preprocessing
@@ -84,6 +85,9 @@ def train_optimal_classifier(train_data, train_y,
     elif classifier == 'rf':
         clf = RandomForestRegressor()
         parameters = GRIDSEARCH_PARAMS['rf']
+    elif classifier == 'elasticnet':
+        clf = ElasticNet(max_iter=10000)
+        parameters = GRIDSEARCH_PARAMS['elasticnet']
     else:
         raise ValueError("Invalid classifier '%s' specified." % classifier)
 
@@ -312,8 +316,8 @@ if __name__ == '__main__':
                         help="Training objective (e.g. score)")
 
     parser.add_argument('-c', '--classifier', default='svr',
-                        type=str, choices=['svr', 'rf'],
-                        help="Classifier (SVR or Random Forest).")
+                        type=str, choices=['svr', 'rf', 'elasticnet'],
+                        help="Classifier (SVR or Random Forest or Elastic Net).")
 
     parser.add_argument('--list-features', action='store_true', default=False,
                         help='Show possible features', dest='list_features')
