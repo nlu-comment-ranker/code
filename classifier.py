@@ -110,6 +110,26 @@ def train_optimal_classifier(train_data, train_y,
     clfopt = grid_search.best_estimator_
     return params, clfopt
 
+def get_feature_importance(clf, clfname,
+                           feature_names = None,
+                           sorted = True):
+    if clfname == 'rf':
+        fi = clf.feature_importances_
+    if clfname == 'elasticnet':
+        fi = clf.coef_
+
+    if feature_names == None:
+        fnames = range(0,len(fi))
+    else:
+        fnames = feature_names
+
+    if sorted:
+        idx = np.argsort(fi)[::-1] # descending order
+        fi = fi[idx]
+        fnames = np.array(fnames)[idx]
+
+    return fnames, fi
+
 
 def standard_experiment(train_df, test_df, feature_names, args):
 
@@ -194,6 +214,25 @@ def standard_experiment(train_df, test_df, feature_names, args):
         print "== Saving model as %s ==" % saveas
         with open(saveas, 'w') as f:
             pickle.dump(clf, f)
+
+    ##
+    # Get feature importance, if possible
+    if args.savename:
+        feature_importances = get_feature_importance(clf, args.classifier,
+                                                     feature_names=feature_names,
+                                                     sorted=True)
+        saveas = args.savename + ".topfeatures.txt"
+        print "== Recording top features to %s ==" % saveas
+        # np.savetxt(saveas, feature_importances)
+        # with open(saveas, 'w') as f:
+            # json.dump(feature_importances, f, indent=2)
+        with open(saveas, 'w') as f:
+            maxlen = max([len(fname) for fname in feature_importances[0]])
+            f.write("# Model: %s\n" % args.classifier)
+            f.write("# Params: %s\n" % json.dumps(params))
+            for fname, val in zip(*feature_importances):
+                f.write("%s  %.06f\n" % (fname.ljust(maxlen), val))
+            f.flush()
 
     ##
     # Save data to HDF5
