@@ -124,7 +124,7 @@ def get_feature_importance(clf, clfname,
         fnames = feature_names
 
     if sorted:
-        idx = np.argsort(fi)[::-1] # descending order
+        idx = np.argsort(fi**2)[::-1] # descending order of magnitude
         fi = fi[idx]
         fnames = np.array(fnames)[idx]
 
