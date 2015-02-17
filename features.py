@@ -228,11 +228,13 @@ def derive_features(df):
     """Compute derivative features from the DataFrame representation."""
 
     # Normalize score by the parent submission score
-    df['score_normalized'] = df['score'] / abs(df['parent_score'])
+    normalizer = lambda x: 1.0/max(abs(x),1)
+    df['score_normalized'] = df['score'] * df['parent_score'].map(normalizer)
 
     # Log transform
-    df['log_score'] = df['score'].map(log)
-    df['log_score_normalized'] = df['score_normalized'].map(log)
+    truncated_shifted_log = lambda x: max(0, log(1+x))
+    df['log_score'] = df['score'].map(truncated_shifted_log)
+    df['log_score_normalized'] = df['score_normalized'].map(truncated_shifted_log)
 
     # Normalize score rank to a 0-1 scale
     # by the number of comments in a thread
