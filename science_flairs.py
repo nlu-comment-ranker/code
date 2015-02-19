@@ -7,10 +7,26 @@ from sqlalchemy import create_engine, func, distinct
 from sqlalchemy.orm import relation, sessionmaker
 from requests.exceptions import HTTPError
 
+
+def process_submission(reddit_id, r, output, fail_list):
+    submission_id = reddit_id.split('_')[1]  # cut off 't3_'
+    try:
+        submission = r.get_submission(submission_id=submission_id)
+    except HTTPError:
+        fail_list.add(reddit_id)
+        return
+
+    flair = submission.link_flair_text
+    
+    print reddit_id, flair
+    output.write('%s,%s\n' % (reddit_id, flair))
+    output.flush()
+
+
 if __name__ == '__main__':
     parser = ArgumentParser(description='Scrape flair of Reddit self-posts')
     parser.add_argument('-u', '--username', type=str,
-                        default='nlu_comment_ranker',
+                        default='nlu_comment_ranker2',
                         help='reddit username')
     parser.add_argument('-p', '--password', type=str,
                         default='cardinal_cs224u',
@@ -34,16 +50,16 @@ if __name__ == '__main__':
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    flair_map = {}
-    for s in session.query(commentDB.Submission.sub_id):
-        reddit_id = s[0]
-        submission_id = reddit_id.split('_')[1]  # cut off 't3_'
-        submission = r.get_submission(submission_id=submission_id)
-        flair = submission.link_flair_text
-        print reddit_id, flair
-        flair_map[reddit_id] = flair
-
+    failed = []
     with open(args.output, 'w') as f:
-        for sub_id in flair_map:
-            f.write('%s,%s\n' % (sub_id, flair_map[sub_id]))
+        for s in session.query(commentDB.Submission.sub_id):
+            process_submission(s[0], r, f, failed)
+
+        while len(failed) > 0:
+            epic_fail = []
+            for reddit_id in failed:
+                process_submission(reddit_id, r, f, epic_fail)
+            failed = epic_fail
+
+
 
