@@ -10,7 +10,7 @@
 # desired series of experiments.
 ##
 
-FLAIRS=(astronomy biology chemistry computing earth_sciences engineering mathematics nedicine neuroscience physics psychology)
+FLAIRS=(astronomy biology chemistry computing earth_sciences engineering mathematics medicine neuroscience physics psychology)
 # FLAIRS=(astronomy biology)
 
 FG=${1:-"all"}
@@ -23,7 +23,8 @@ echo 'trap exit ERR' >> $OUTFILE
 echo 'set -x' >> $OUTFILE
 echo 'HERE=$(dirname $0)' >> $OUTFILE
 echo 'DFBASE=${1:-"data/data-askscience-feb18.ALL"}' >> $OUTFILE
-echo 'OUTDIR=${2:-"tmp"}' >> $OUTFILE
+echo 'OUTDIR=${2:-"tmp/flairx"}' >> $OUTFILE
+echo 'mkdir -p $OUTDIR' >> $OUTFILE
 chmod +x $OUTFILE
 
 # Pairwise
