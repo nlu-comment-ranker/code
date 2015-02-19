@@ -10,8 +10,8 @@
 # desired series of experiments.
 ##
 
-# FLAIRS=(astronomy biology chemistry computing earth_sciences engineering mathematics nedicine neuroscience physics psychology)
-FLAIRS=(astronomy biology)
+FLAIRS=(astronomy biology chemistry computing earth_sciences engineering mathematics nedicine neuroscience physics psychology)
+# FLAIRS=(astronomy biology)
 
 FG=${1:-"all"}
 SCORE=${2:-"score"}
