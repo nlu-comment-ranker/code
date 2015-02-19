@@ -1,7 +1,7 @@
 ##
 # Social Web Comment Ranking
 # CS224U Spring 2014
-# Stanford University 
+# Stanford University
 #
 # Evaluation Function
 #
@@ -47,9 +47,12 @@ def fav_target(comments, target, result_label):
     """
     Calculate favorability for NDCG using the actual
     comment scores as the position->relevance function.
-    
-    Returns comments sorted in target (ground-truth) order, 
+
+    Returns comments sorted in target (ground-truth) order,
     but with pred_fav in the order predicted by the model.
+
+    Note that 'target' need not be the field regressed on;
+    result_label is only used to determine the ordering.
     """
     real_fav = comments[target].as_matrix()
 
@@ -59,6 +62,7 @@ def fav_target(comments, target, result_label):
     comments = comments.sort(target, ascending=False)
     comments['fav'] = comments[target]
     return comments
+
 
 def thread_ndcg(comments, k, target, result_label,
                 fav_func=fav_linear):
@@ -132,8 +136,8 @@ def evaluate_submissions(data, max_K=20, target='score',
     for sid in sids:
         comments = data[data.sid == sid]
 
-        # Evaluate 
-        res = thread_ndcg(comments, max_K, 
+        # Evaluate
+        res = thread_ndcg(comments, max_K,
                           target, "pred_" + target,
                           fav_func=fav_func)
         ndcgs.append(res)
@@ -150,7 +154,7 @@ def calc_y_yerr(evaldf, max_K):
     """
     Calculate mean and stdev_mean at each k,
     for a given dataframe returned by evaluate_submissions, above.
-    """ 
+    """
     cols = gen_k_labels(max_K)
     y = evaldf[cols].mean()
     yerr = evaldf[cols].std() / np.sqrt(evaldf.shape[0] - 1)

@@ -115,8 +115,10 @@ def get_feature_importance(clf, clfname,
                            sorted = True):
     if clfname == 'rf':
         fi = clf.feature_importances_
-    if clfname == 'elasticnet':
+    elif clfname == 'elasticnet':
         fi = clf.coef_
+    else:
+        return ["  "], [0] # unable to compute, e.g. SVR
 
     if feature_names == None:
         fnames = range(0,len(fi))
@@ -179,7 +181,7 @@ def standard_experiment(train_df, test_df, feature_names, args):
 
     max_K = 20
     eval_func = lambda data: evaluation.ndcg(data, max_K,
-                                             target=args.target,
+                                             target=args.ndcg_target,
                                              result_label=result_label,
                                              fav_func=favfunc)
 
@@ -375,6 +377,13 @@ if __name__ == '__main__':
                         Weighting option for NDCG calculation.
                         'target' : weight by regression target
                         'linear' : weight by rank
+                        """)
+
+    parser.add_argument('--n_target', dest='ndcg_target',
+                        default='score', type=str,
+                        help="""
+                        Scoring field when using 'target' mode NDCG;
+                        useful if regressing on log_score or other.
                         """)
 
     args = parser.parse_args()
