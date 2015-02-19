@@ -311,14 +311,17 @@ def main(args):
     feature_names = sorted(list(feature_names))
     print "Using features: \n  " + "\n  ".join(feature_names)
 
-    if args.crossdomain == "":
-        train_df, test_df = prep_data_standard(data, feature_names, args)
-        standard_experiment(train_df, test_df, feature_names, args)
-    else:
-        data_x = pd.read_df(args.crossdomain, 'data')
+    if args.crossdomain != "":
+        print "== Running cross-domain experiment =="
+        print "  TRAIN: %s" % args.datafile
+        print "   TEST: %s" % args.crossdomain
+        data_x = pd.read_hdf(args.crossdomain, 'data')
         train_df, test_df = prep_data_crossdomain(data, data_x, feature_names, args)
         standard_experiment(train_df, test_df, feature_names, args)
-
+    else:
+        print "== Running standard experiment =="
+        train_df, test_df = prep_data_standard(data, feature_names, args)
+        standard_experiment(train_df, test_df, feature_names, args)
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Run SVR')
