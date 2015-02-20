@@ -241,12 +241,15 @@ def standard_experiment(train_df, test_df, feature_names, args):
     if args.savename:
 
         # Save score predictions
-        fields = ["self_id", "parent_id", args.target, result_label]
-        saveas = [args.savename + ".scores.train.csv",
-                  args.savename + ".scores.test.csv"]
-        print "== Saving raw predictions as %s, %s ==" % tuple(saveas)
-        train_df[fields].to_csv(saveas[0])
-        test_df[fields].to_csv(saveas[1])
+        fields = ["self_id", "parent_id", 'cid', 'sid', 'set',
+                  args.target, result_label]
+        if not args.ndcg_target in fields:
+            fields.append(args.ndcg_target)
+        saveas = args.savename + ".scores.h5"
+        print "== Saving raw predictions as %s ==" % saveas
+        outdf = pd.concat([train_df[fields], test_df[fields]],
+                          ignore_index=True)
+        outdf.to_hdf(saveas, 'data')
 
         if args.savefull:
             # Concatenate train, test
