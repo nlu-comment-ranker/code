@@ -43,8 +43,9 @@ FG = {
               "pos_f_numeral"],
     "metadata": ["position_rank",
                  "timedelta",
-                 'num_reports',
-                 'distinguished'],
+                 # 'num_reports', # appears to be missing?
+                 # 'distinguished' # string feature; can't convert to float
+                 ],
     "posterior": ['gilded', 'num_replies', 'convo_depth'],
     "context": ["parent_term_overlap",
                 "parent_jaccard_overlap",

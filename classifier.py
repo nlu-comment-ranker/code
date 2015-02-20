@@ -47,6 +47,9 @@ FEATURE_GROUPS = settings.FEATURE_GROUPS
 def clean_data(data, columns):
     for column in columns:
         data = data[data[column].notnull()]
+        if len(data) < 10:
+            print >> sys.stderr, "WARNING: clipping feature '%s' leaves only %d examples left." % (column, len(data))
+            exit(10)
     return data
 
 
