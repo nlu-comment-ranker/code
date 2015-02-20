@@ -123,6 +123,7 @@ def gen_k_labels(max_K):
     return ["k%d" % k for k in range(1,max_K+1)]
 
 def evaluate_submissions(data, max_K=20, target='score',
+                         pred_target=None,
                          fav_func=fav_target):
     """
     Evaluate per-thread submissions for a given dataset.
@@ -137,8 +138,10 @@ def evaluate_submissions(data, max_K=20, target='score',
         comments = data[data.sid == sid]
 
         # Evaluate
+        if pred_target == None:
+            pred_target = "pred_" + target
         res = thread_ndcg(comments, max_K,
-                          target, "pred_" + target,
+                          target, pred_target,
                           fav_func=fav_func)
         ndcgs.append(res)
         ncomments.append(len(comments))
