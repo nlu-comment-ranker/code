@@ -163,17 +163,18 @@ def standard_experiment(train_df, test_df, feature_names, args):
     train_X = scaler.fit_transform(train_X) # faster than fit, transform separately
     test_X = scaler.transform(test_X)
 
-    ##
-    # Run Grid Search / 10xv on training/dev set
-    start = time.time()
-    print "== Finding optimal classifier using Grid Search =="
-    params, clf = train_optimal_classifier(train_X, train_y,
-                                           classifier=args.classifier,
-                                           quickmode=args.quickmode)
-    print "Optimal parameters: " + json.dumps(params, indent=4)
-    if hasattr(clf, "support_vectors_"):
-        print 'Number of support vectors: %d' % len(clf.support_vectors_)
-    print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
+    if args.classifier != 'baseline':
+        ##
+        # Run Grid Search / 10xv on training/dev set
+        start = time.time()
+        print "== Finding optimal classifier using Grid Search =="
+        params, clf = train_optimal_classifier(train_X, train_y,
+                                               classifier=args.classifier,
+                                               quickmode=args.quickmode)
+        print "Optimal parameters: " + json.dumps(params, indent=4)
+        if hasattr(clf, "support_vectors_"):
+            print 'Number of support vectors: %d' % len(clf.support_vectors_)
+        print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
 
     ##
     # Set up evaluation function
@@ -191,7 +192,10 @@ def standard_experiment(train_df, test_df, feature_names, args):
     ##
     # Predict scores for training set
     result_label = "pred_%s" % args.target # e.g. pred_score
-    train_pred = clf.predict(train_X)
+    if args.classifier != 'baseline':
+        train_pred = clf.predict(train_X)
+    else: # baseline: post order
+        train_pred = train_df['position_rank']
     train_df[result_label] = train_pred
 
     print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
@@ -202,7 +206,10 @@ def standard_experiment(train_df, test_df, feature_names, args):
 
     ##
     # Predict scores for test set
-    test_pred = clf.predict(test_X)
+    if args.classifier != 'baseline':
+        test_pred = clf.predict(test_X)
+    else: # baseline: post order
+        test_pred = test_df['position_rank']
     test_df[result_label] = test_pred
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
@@ -213,7 +220,7 @@ def standard_experiment(train_df, test_df, feature_names, args):
 
     ##
     # Save model to disk
-    if args.savename:
+    if args.savename and (args.classifier != 'baseline'):
         import cPickle as pickle
         saveas = args.savename + ".model.pkl"
         print "== Saving model as %s ==" % saveas
@@ -222,7 +229,7 @@ def standard_experiment(train_df, test_df, feature_names, args):
 
     ##
     # Get feature importance, if possible
-    if args.savename:
+    if args.savename and (args.classifier != 'baseline'):
         feature_importances = get_feature_importance(clf, args.classifier,
                                                      feature_names=feature_names,
                                                      sorted=True)
@@ -366,7 +373,7 @@ if __name__ == '__main__':
                         help="Training objective (e.g. score)")
 
     parser.add_argument('-c', '--classifier', default='svr',
-                        type=str, choices=['svr', 'rf', 'elasticnet'],
+                        type=str, choices=['svr', 'rf', 'elasticnet', 'baseline'],
                         help="Classifier (SVR or Random Forest or Elastic Net).")
 
     parser.add_argument('--list-features', action='store_true', default=False,
