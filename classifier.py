@@ -137,6 +137,10 @@ def crossdomain_experiment(home_df, test_df, feature_names,
     home_df['set'] = "home" # annotate
     test_df['set'] = "test" # annotate
 
+    # prep for result storage
+    home_df[result_label] = np.zeros(len(home_df))
+    test_df[result_label] = np.zeros(len(test_df))
+
     test_X = test_df.filter(feature_names).as_matrix().astype(np.float) # test data
     test_y = test_df.filter([target]).as_matrix().astype(np.float) # ground truth
     test_y = test_y.reshape((-1,))
@@ -157,8 +161,6 @@ def crossdomain_experiment(home_df, test_df, feature_names,
                                              result_label=result_label,
                                              fav_func=favfunc)
 
-    results_dev = np.zeros((cv_folds, max_K)) # column for each k, row for each fold
-    results_test = np.zeros((cv_folds, max_K)) # column for each k, row for each fold
     train_ncomments = np.zeros(cv_folds)
     train_nsubs = np.zeros(cv_folds)
 
@@ -216,31 +218,26 @@ def crossdomain_experiment(home_df, test_df, feature_names,
         ##
         # Predict scores for dev set
         dev_pred = clf.predict(dev_X)
-        dev_df[result_label] = dev_pred
-        ndcg_dev = eval_func(dev_df)
-        results_dev[foldidx,:] = ndcg_dev
+        # dev_df[result_label] = dev_pred
+        home_df.loc[dev_df.index,result_label] = dev_pred
 
         ##
         # Predict scores for test set
+        # average comment scores across each cv fold
         test_pred = clf.predict(test_X)
-        test_df[result_label] = test_pred
-        ndcg_test = eval_func(test_df)
-        results_test[foldidx,:] = ndcg_test
+        test_df[result_label] += (1.0/cv_folds)*test_pred
 
-
-    ndcg_dev = np.mean(results_dev, axis=0)
-    std_dev = np.std(results_dev, axis=0)
-    ndcg_test = np.mean(results_test, axis=0)
-    std_test = np.std(results_test, axis=0)
 
     print 'Performance on dev data (NDCG with %s weighting)' % args.ndcg_weight
-    for i, (score, std) in enumerate(zip(ndcg_dev, std_dev), start=1):
-        print '\tNDCG@%d: %.3f +/- %.3f' % (i, score, std / np.sqrt(cv_folds - 1))
+    ndcg_dev = eval_func(home_df)
+    for i, score in enumerate(ndcg_dev, start=1):
+        print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(dev_y, dev_pred)
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
-    for i, (score, std) in enumerate(zip(ndcg_test, std_test), start=1):
-        print '\tNDCG@%d: %.3f +/- %.3f' % (i, score, std / np.sqrt(cv_folds - 1))
+    ndcg_test = eval_func(test_df)
+    for i, score in enumerate(ndcg_dev, start=1):
+        print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
     mu = np.mean(train_nsubs)
@@ -253,10 +250,20 @@ def crossdomain_experiment(home_df, test_df, feature_names,
     ##
     # Save data to HDF5
     if args.savename:
+        # Save score predictions
+        fields = ["self_id", "parent_id", 'cid', 'sid', 'set',
+                  args.target, result_label]
+        if not args.ndcg_target in fields:
+            fields.append(args.ndcg_target)
+        saveas = args.savename + ".scores.h5"
+        print "== Saving raw predictions as %s ==" % saveas
+        outdf = pd.concat([home_df[fields], test_df[fields]],
+                          ignore_index=True)
+        outdf.to_hdf(saveas, 'data')
+
         # Save NDCG calculations
         dd = {'k':range(1,max_K+1), 'method':[args.ndcg_weight]*max_K,
-              'ndcg_dev':ndcg_dev, 'ndcg_test':ndcg_test,
-              'std_dev': std_dev, 'std_test': std_test}
+              'ndcg_dev':ndcg_dev, 'ndcg_test':ndcg_test}
         resdf = pd.DataFrame(dd)
         saveas = args.savename + ".results.csv"
         print "== Saving results to %s ==" % saveas
