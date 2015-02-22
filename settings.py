@@ -35,8 +35,7 @@ STANDARD_PARAMS = {
         "n_estimators": 100,
         "criterion": "mse",
         "max_features": "auto",
-        "max_depth": 5,
-        "random_state": 42
+        "max_depth": 5
     }
 }
 

@@ -75,12 +75,14 @@ def split_data(data, limit_data=0, test_fraction=0.9):
 # Runs grid search to determine the best parameters to use for SVR
 def train_optimal_classifier(train_data, train_y,
                              classifier='svr',
+                             rfseed=42,
                              quickmode=False):
     if classifier == 'svr':
         clf = SVR()
         parameters = GRIDSEARCH_PARAMS['svr']
     elif classifier == 'rf':
-        clf = RandomForestRegressor()
+        print "Initializing RandomForestRegressor model, seed=%d" % rfseed
+        clf = RandomForestRegressor(random_state=rfseed)
         parameters = GRIDSEARCH_PARAMS['rf']
     elif classifier == 'elasticnet':
         clf = ElasticNet(max_iter=10000)
@@ -205,11 +207,16 @@ def crossdomain_experiment(home_df, test_df, feature_names,
         ##
         # Build classifier from pre-specified parameters
         if args.classifier == 'svr':
+            print "Initializing SVR model"
             clf = SVR(**STANDARD_PARAMS['svr'])
         elif args.classifier == 'rf':
-            clf = RandomForestRegressor(**STANDARD_PARAMS['rf'])
+            print "Initializing RandomForestRegressor model, seed=%d" % args.rfseed
+            clf = RandomForestRegressor(random_state=args.rfseed,
+                                        **STANDARD_PARAMS['rf'])
         elif args.classifier == 'elasticnet':
-            clf = ElasticNet(max_iter=10000, **STANDARD_PARAMS['elasticnet'])
+            print "Initializing ElasticNet model"
+            clf = ElasticNet(max_iter=10000,
+                             **STANDARD_PARAMS['elasticnet'])
         else:
             raise ValueError("Invalid classifier '%s' specified." % args.classifier)
 
@@ -236,7 +243,7 @@ def crossdomain_experiment(home_df, test_df, feature_names,
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
     ndcg_test = eval_func(test_df)
-    for i, score in enumerate(ndcg_dev, start=1):
+    for i, score in enumerate(ndcg_test, start=1):
         print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
@@ -304,6 +311,7 @@ def standard_experiment(train_df, test_df, feature_names, args):
         print "== Finding optimal classifier using Grid Search =="
         params, clf = train_optimal_classifier(train_X, train_y,
                                                classifier=args.classifier,
+                                               rfseed=args.rfseed,
                                                quickmode=args.quickmode)
         print "Optimal parameters: " + json.dumps(params, indent=4)
         if hasattr(clf, "support_vectors_"):
@@ -509,6 +517,10 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--classifier', default='svr',
                         type=str, choices=['svr', 'rf', 'elasticnet', 'baseline'],
                         help="Classifier (SVR or Random Forest or Elastic Net).")
+
+    parser.add_argument('--rfseed', dest='rfseed',
+                        default=42, type=int,
+                        help="PRNG seed for Random Forest")
 
     parser.add_argument('--list-features', action='store_true', default=False,
                         help='Show possible features', dest='list_features')
