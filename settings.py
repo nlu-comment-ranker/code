@@ -23,6 +23,22 @@ GRIDSEARCH_PARAMS = {
     }
 }
 
+STANDARD_PARAMS = {
+    "svr": {
+        "epsilon": 0.1,
+        "C": 1,
+        "tol": 0.1,
+        "gamma": 0.0,
+        "kernel": "rbf"
+    },
+    "rf": {
+        "n_estimators": 100,
+        "criterion": "mse",
+        "max_features": "auto",
+        "max_depth": 5
+    }
+}
+
 # This is somewhat redundant with features.py,
 # but better reflects the feature groups we tested
 # in our original paper

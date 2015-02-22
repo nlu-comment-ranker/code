@@ -40,6 +40,7 @@ THIS_DIR = os.path.dirname(inspect.getsourcefile(dummy))
 
 # Configuration options
 import settings
+STANDARD_PARAMS = settings.STANDARD_PARAMS
 GRIDSEARCH_PARAMS = settings.GRIDSEARCH_PARAMS
 FEATURE_GROUPS = settings.FEATURE_GROUPS
 
@@ -75,13 +76,6 @@ def split_data(data, limit_data=0, test_fraction=0.9):
 def train_optimal_classifier(train_data, train_y,
                              classifier='svr',
                              quickmode=False):
-    # parameters = {
-    #     'kernel': ['rbf'],
-    #     'C': [0.1, 1, 10, 100, 500],
-    #     'degree': [0.5, 1, 2, 3, 4, 5],
-    #     'gamma': [0.0],
-    #     'epsilon': [0.1],
-    #     'tol': [1e-1]}
     if classifier == 'svr':
         clf = SVR()
         parameters = GRIDSEARCH_PARAMS['svr']
@@ -134,6 +128,136 @@ def get_feature_importance(clf, clfname,
         fnames = np.array(fnames)[idx]
 
     return fnames, fi
+
+def crossdomain_experiment(home_df, test_df, feature_names,
+                           args, cv_folds=10):
+
+    target = args.target
+    result_label = "pred_%s" % args.target # e.g. pred_score
+    home_df['set'] = "home" # annotate
+    test_df['set'] = "test" # annotate
+
+    test_X = test_df.filter(feature_names).as_matrix().astype(np.float) # test data
+    test_y = test_df.filter([target]).as_matrix().astype(np.float) # ground truth
+    test_y = test_y.reshape((-1,))
+
+    print "Selected %d features" % (len(feature_names),)
+    print 'Features: %s' % (' '.join(feature_names))
+
+    ##
+    # Set up evaluation function
+    if args.ndcg_weight == 'target':
+        favfunc = evaluation.fav_target # score weighting
+    else:
+        favfunc = evaluation.fav_linear # rank weighting
+
+    max_K = 20
+    eval_func = lambda data: evaluation.ndcg(data, max_K,
+                                             target=args.ndcg_target,
+                                             result_label=result_label,
+                                             fav_func=favfunc)
+
+    results_dev = np.zeros((cv_folds, max_K)) # column for each k, row for each fold
+    results_test = np.zeros((cv_folds, max_K)) # column for each k, row for each fold
+    train_ncomments = np.zeros(cv_folds)
+    train_nsubs = np.zeros(cv_folds)
+
+    ##
+    # Cross-validation for training set
+    # train/dev from train_df
+    # test each on whole test set
+    sids = home_df.sid.unique()
+    kf = KFold(len(sids), cv_folds)
+    for foldidx, (train_sids_idx, dev_sids_idx) in enumerate(kf):
+        print ">> Fold [%d] <<" % foldidx
+        # collect actual SIDs
+        train_sids = set(sids[train_sids_idx])
+        dev_sids = set(sids[dev_sids_idx])
+        # filter rows by SID match
+        train_df = home_df[home_df.sid.map(lambda x: x in train_sids)]
+        dev_df = home_df[home_df.sid.map(lambda x: x in dev_sids)]
+
+        train_nsubs[foldidx] = len(train_sids)
+        train_ncomments[foldidx] = len(train_df)
+
+        # Split into X, y for regression
+        train_X = train_df.filter(feature_names).as_matrix().astype(np.float) # training data
+        train_y = train_df.filter([target]).as_matrix().astype(np.float) # training labels
+        dev_X = dev_df.filter(feature_names).as_matrix().astype(np.float) # training data
+        dev_y = dev_df.filter([target]).as_matrix().astype(np.float) # training labels
+
+        # For compatibility, make 1D
+        train_y = train_y.reshape((-1,))
+        dev_y = dev_y.reshape((-1,))
+
+        print "Training set: %d examples" % (train_X.shape[0],)
+        print "Dev set: %d examples" % (dev_X.shape[0],)
+        print "Test set: %d examples" % (test_X.shape[0],)
+
+        ##
+        # Preprocessing: scale data, keep SVM happy
+        scaler = preprocessing.StandardScaler()
+        train_X = scaler.fit_transform(train_X) # faster than fit, transform separately
+        test_X = scaler.transform(test_X)
+
+        ##
+        # Build classifier from pre-specified parameters
+        if args.classifier == 'svr':
+            clf = SVR(**STANDARD_PARAMS['svr'])
+        elif args.classifier == 'rf':
+            clf = RandomForestRegressor(**STANDARD_PARAMS['rf'])
+        elif args.classifier == 'elasticnet':
+            clf = ElasticNet(max_iter=10000, **STANDARD_PARAMS['elasticnet'])
+        else:
+            raise ValueError("Invalid classifier '%s' specified." % args.classifier)
+
+        clf.fit(train_X, train_y)
+
+        ##
+        # Predict scores for dev set
+        dev_pred = clf.predict(dev_X)
+        dev_df[result_label] = dev_pred
+        ndcg_dev = eval_func(dev_df)
+        results_dev[foldidx,:] = ndcg_dev
+
+        ##
+        # Predict scores for test set
+        test_pred = clf.predict(test_X)
+        test_df[result_label] = test_pred
+        ndcg_test = eval_func(test_df)
+        results_test[foldidx,:] = ndcg_test
+
+
+    ndcg_dev = np.mean(results_dev, axis=0)
+    ndcg_test = np.mean(results_test, axis=0)
+
+    print 'Performance on dev data (NDCG with %s weighting)' % args.ndcg_weight
+    for i, score in enumerate(ndcg_dev, start=1):
+        print '\tNDCG@%d: %.5f' % (i, score)
+    print 'Karma MSE: %.5f' % mean_squared_error(dev_y, dev_pred)
+
+    print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
+    for i, score in enumerate(ndcg_test, start=1):
+        print '\tNDCG@%d: %.5f' % (i, score)
+    print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
+
+    mu = np.mean(train_nsubs)
+    s = np.std(train_nsubs) / np.sqrt(cv_folds - 1)
+    print ("Training set size: %.02f +/- %.02f subs" % (mu, s)),
+    mu = np.mean(train_ncomments)
+    s = np.std(train_ncomments) / np.sqrt(cv_folds - 1)
+    print "[%.02f +/- %.02f comments]" % (mu, s)
+
+    ##
+    # Save data to HDF5
+    if args.savename:
+        # Save NDCG calculations
+        dd = {'k':range(1,max_K+1), 'method':[args.ndcg_weight]*max_K,
+              'ndcg_dev':ndcg_dev, 'ndcg_test':ndcg_test}
+        resdf = pd.DataFrame(dd)
+        saveas = args.savename + ".results.csv"
+        print "== Saving results to %s ==" % saveas
+        resdf.to_csv(saveas)
 
 
 def standard_experiment(train_df, test_df, feature_names, args):
@@ -330,7 +454,7 @@ def main(args):
         print "   TEST: %s" % args.crossdomain
         data_x = pd.read_hdf(args.crossdomain, 'data')
         train_df, test_df = prep_data_crossdomain(data, data_x, feature_names, args)
-        standard_experiment(train_df, test_df, feature_names, args)
+        crossdomain_experiment(train_df, test_df, feature_names, args)
     else:
         print "== Running standard experiment =="
         train_df, test_df = prep_data_standard(data, feature_names, args)
@@ -347,7 +471,7 @@ if __name__ == '__main__':
                         help='Cross-domain test dataset')
 
     parser.add_argument('-s', '--savename', dest='savename',
-                        default=None,
+                        default='PLACEHOLDER',
                         help="Name to save model and results. Extensions (.model.pkl and .data.h5) will be added.")
 
     parser.add_argument('--savefull', dest='savefull',
@@ -365,7 +489,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--fg", "--featuregroup", type=str,
                         dest="feature_groups",
-                        nargs="+", default=[],
+                        nargs="+", default=['all'],
                         help="Pre-specified feature groups, as given in settings.py")
 
     parser.add_argument('-t', '--target', dest='target',
