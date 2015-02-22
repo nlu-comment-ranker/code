@@ -252,10 +252,10 @@ def crossdomain_experiment(home_df, test_df, feature_names,
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
     mu = np.mean(train_nsubs)
-    s = np.std(train_nsubs) / np.sqrt(cv_folds - 1)
+    s = np.std(train_nsubs)
     print ("Training set size: %.02f +/- %.02f subs" % (mu, s)),
     mu = np.mean(train_ncomments)
-    s = np.std(train_ncomments) / np.sqrt(cv_folds - 1)
+    s = np.std(train_ncomments)
     print "[%.02f +/- %.02f comments]" % (mu, s)
 
     ##
