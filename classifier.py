@@ -542,7 +542,7 @@ if __name__ == '__main__':
                         """)
 
     parser.add_argument('--n_target', dest='ndcg_target',
-                        default='score', type=str,
+                        default='truncated_score', type=str,
                         help="""
                         Scoring field when using 'target' mode NDCG;
                         useful if regressing on log_score or other.

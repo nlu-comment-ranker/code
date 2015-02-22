@@ -227,6 +227,10 @@ def fs_to_DataFrame(featureSets):
 def derive_features(df):
     """Compute derivative features from the DataFrame representation."""
 
+    # Truncated scores, for NDCG calculation
+    # since NDCG not compatible with scores < 0
+    df['truncated_score'] = df['score'].map(lambda x: max(0,x))
+
     # Normalize score by the parent submission score
     normalizer = lambda x: 1.0/max(abs(x),1)
     df['score_normalized'] = df['score'] * df['parent_score'].map(normalizer)

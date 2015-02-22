@@ -10,11 +10,11 @@
 # desired series of experiments.
 ##
 
-FLAIRS=(astronomy biology chemistry computing earth_sciences engineering mathematics medicine neuroscience physics psychology)
-# FLAIRS=(astronomy biology)
+# FLAIRS=(astronomy biology chemistry computing earth_sciences engineering mathematics medicine neuroscience physics psychology)
+FLAIRS=(biology chemistry psychology)
 
 FG=${1:-"all"}
-SCORE=${2:-"score"}
+SCORE=${2:-"log_score"}
 CLF=${3:-"rf"}
 
 OUTFILE="flairx.sh"
@@ -22,7 +22,7 @@ echo '#!/bin/bash' > $OUTFILE
 echo 'trap exit ERR' >> $OUTFILE
 echo 'set -x' >> $OUTFILE
 echo 'HERE=$(dirname $0)' >> $OUTFILE
-echo 'DFBASE=${1:-"data/data-askscience-feb18.ALL"}' >> $OUTFILE
+echo 'DFBASE=${1:-"data/data-askscience-feb21.ALL"}' >> $OUTFILE
 echo 'OUTDIR=${2:-"tmp/flairx"}' >> $OUTFILE
 echo 'mkdir -p $OUTDIR' >> $OUTFILE
 chmod +x $OUTFILE
