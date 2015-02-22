@@ -229,16 +229,18 @@ def crossdomain_experiment(home_df, test_df, feature_names,
 
 
     ndcg_dev = np.mean(results_dev, axis=0)
+    std_dev = np.std(results_dev, axis=0)
     ndcg_test = np.mean(results_test, axis=0)
+    std_test = np.std(results_test, axis=0)
 
     print 'Performance on dev data (NDCG with %s weighting)' % args.ndcg_weight
-    for i, score in enumerate(ndcg_dev, start=1):
-        print '\tNDCG@%d: %.5f' % (i, score)
+    for i, (score, std) in enumerate(zip(ndcg_dev, std_dev), start=1):
+        print '\tNDCG@%d: %.3f +/- %.3f' % (i, score, std / np.sqrt(cv_folds - 1))
     print 'Karma MSE: %.5f' % mean_squared_error(dev_y, dev_pred)
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
-    for i, score in enumerate(ndcg_test, start=1):
-        print '\tNDCG@%d: %.5f' % (i, score)
+    for i, (score, std) in enumerate(zip(ndcg_test, std_test), start=1):
+        print '\tNDCG@%d: %.3f +/- %.3f' % (i, score, std / np.sqrt(cv_folds - 1))
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
     mu = np.mean(train_nsubs)
@@ -253,7 +255,8 @@ def crossdomain_experiment(home_df, test_df, feature_names,
     if args.savename:
         # Save NDCG calculations
         dd = {'k':range(1,max_K+1), 'method':[args.ndcg_weight]*max_K,
-              'ndcg_dev':ndcg_dev, 'ndcg_test':ndcg_test}
+              'ndcg_dev':ndcg_dev, 'ndcg_test':ndcg_test,
+              'std_dev': std_dev, 'std_test': std_test}
         resdf = pd.DataFrame(dd)
         saveas = args.savename + ".results.csv"
         print "== Saving results to %s ==" % saveas
