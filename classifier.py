@@ -180,6 +180,10 @@ def crossdomain_experiment(home_df, test_df, feature_names,
         # filter rows by SID match
         train_df = home_df[home_df.sid.map(lambda x: x in train_sids)]
         dev_df = home_df[home_df.sid.map(lambda x: x in dev_sids)]
+        # clip training set, if necessary
+        if (0 < args.limit_data < len(train_df)):
+            print "Clipping training set to %d comments" % args.limit_data
+            train_df = train_df[:args.limit_data]
 
         train_nsubs[foldidx] = len(train_sids)
         train_ncomments[foldidx] = len(train_df)

@@ -24,6 +24,7 @@ echo 'set -x' >> $OUTFILE
 echo 'HERE=$(dirname $0)' >> $OUTFILE
 echo 'DFBASE=${1:-"data/data-askscience-feb21.ALL"}' >> $OUTFILE
 echo 'OUTDIR=${2:-"tmp/flairx"}' >> $OUTFILE
+echo 'DATA_LIMIT=${3:-"800"}' >> $OUTFILE
 echo 'mkdir -p $OUTDIR' >> $OUTFILE
 chmod +x $OUTFILE
 
@@ -36,7 +37,7 @@ do
 		if [ $flair1 != $flair2 ]
 		then
 			echo $flair1 "->" $flair2
-			CMD='stdbuf -oL -eL $HERE/classifier.py $DFBASE'".$flair1 --crossdomain "'$DFBASE'".$flair2 --fg $FG -t $SCORE -c $CLF -s "'$OUTDIR'"/$flair1-on-$flair2 | tee "'$OUTDIR'"/$flair1-on-$flair2.log"
+			CMD='stdbuf -oL -eL $HERE/classifier.py $DFBASE'".$flair1 --crossdomain "'$DFBASE'".$flair2 --fg $FG -t $SCORE -c $CLF -s "'$OUTDIR'"/$flair1-on-$flair2 "'-l $DATA_LIMIT'" | tee "'$OUTDIR'"/$flair1-on-$flair2.log"
 			echo -e $CMD >> $OUTFILE
 		fi
 	done
