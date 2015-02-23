@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set +x
+
 HERE=$(dirname $0)
 DATA=$1
 TARGET="log_score"
@@ -9,9 +11,9 @@ mkdir -p $OUTDIR
 
 python $HERE/classifier.py $DATA --stock -t $TARGET -c $MODEL -s $OUTDIR/all_abl --fg all
 
-python $HERE/classifier.py $DATA --stock -t $TARGET -c $MODEL -s $OUTDIR/all_abl --fg all-notimedelta
+python $HERE/classifier.py $DATA --stock -t $TARGET -c $MODEL -s $OUTDIR/all_notd_abl --fg all-notimedelta
 
-python $HERE/classifier.py $DATA --stock -t $TARGET -c $MODEL -s $OUTDIR/base_abl --f timedelta user_local_comment_avg_net_karma
+python $HERE/classifier.py $DATA --stock -t $TARGET -c $MODEL -s $OUTDIR/top2_abl --f timedelta user_local_comment_avg_net_karma
 
 python $HERE/classifier.py $DATA --stock -t $TARGET -c $MODEL -s $OUTDIR/combo_abl --fg combo
 
