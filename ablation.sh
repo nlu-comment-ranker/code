@@ -9,6 +9,10 @@ mkdir -p $OUTDIR
 
 python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/all_abl --fg all
 
+python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/all_abl --fg all-notimedelta
+
+python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/base_abl --f timedelta user_local_comment_avg_net_karma
+
 python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/combo_abl --fg combo
 
 python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/all_text_abl --fg all_text
@@ -21,4 +25,4 @@ python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/base_meta_abl -
 
 python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/base_abl --fg baseline
 
-python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/dummy_abl -f position_rank
+# python $HERE/classifier.py $DATA -t $TARGET -c $MODEL -s $OUTDIR/dummy_abl -f position_rank
