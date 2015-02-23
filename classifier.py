@@ -57,11 +57,11 @@ def clean_data(data, columns):
 # Given Pandas dataframe, returns 80/20 split into dev and test sets
 # Usage:
 #   dev_data, test_X = split_data(data)
-def split_data(data, limit_data=0, test_fraction=0.9):
-    if limit_data > 0:
-        random.seed(42)
-        sids = random.sample(data.sid.unique(), limit_data)
-        data = data[data.sid.map(lambda x: x in sids)]
+def split_data(data, test_fraction=0.9):
+    # if limit_data > 0:
+    #     random.seed(42)
+    #     sids = random.sample(data.sid.unique(), limit_data)
+    #     data = data[data.sid.map(lambda x: x in sids)]
 
     # Split along unique submission IDs
     dev_sid, eval_sid = train_test_split(data.sid.unique(),
@@ -289,6 +289,11 @@ def standard_experiment(train_df, test_df, feature_names, args):
     train_df['set'] = "train" # annotate
     test_df['set'] = "test" # annotate
 
+    # clip training set, if necessary
+    if (0 < args.limit_data < len(train_df)):
+        print "Clipping training set to %d comments" % args.limit_data
+        train_df = train_df[:args.limit_data]
+
     # Split into X, y for regression
     target = args.target
     train_X = train_df.filter(feature_names).as_matrix().astype(np.float) # training data
@@ -437,8 +442,7 @@ def prep_data_standard(data, feature_names, args):
     # Split into train, test
     # and select training target
     target = args.target
-    train_df, test_df = split_data(data, args.limit_data,
-                                   args.test_fraction)
+    train_df, test_df = split_data(data, args.test_fraction)
     return train_df, test_df
 
 
@@ -534,7 +538,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-l', '-L', '--limit-data', dest='limit_data',
                         default=0, type=int,
-                        help="Limit to # of submissions")
+                        help="Limit size of training set")
 
     parser.add_argument('--min_posts_ndcg', dest='min_posts_ndcg',
                         default=3,
