@@ -316,19 +316,42 @@ def standard_experiment(train_df, test_df, feature_names, args):
     train_X = scaler.fit_transform(train_X) # faster than fit, transform separately
     test_X = scaler.transform(test_X)
 
+
     if args.classifier != 'baseline':
-        ##
-        # Run Grid Search / 10xv on training/dev set
-        start = time.time()
-        print "== Finding optimal classifier using Grid Search =="
-        params, clf = train_optimal_classifier(train_X, train_y,
-                                               classifier=args.classifier,
-                                               rfseed=args.rfseed,
-                                               quickmode=args.quickmode)
-        print "Optimal parameters: " + json.dumps(params, indent=4)
-        if hasattr(clf, "support_vectors_"):
-            print 'Number of support vectors: %d' % len(clf.support_vectors_)
-        print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
+        if args.stock_params:
+            if args.classifier == 'svr':
+                print "Initializing SVR model"
+                clf = SVR(**STANDARD_PARAMS['svr'])
+            elif args.classifier == 'rf':
+                print "Initializing RandomForestRegressor model, seed=%d" % args.rfseed
+                clf = RandomForestRegressor(random_state=args.rfseed,
+                                            **STANDARD_PARAMS['rf'])
+            elif args.classifier == 'elasticnet':
+                print "Initializing ElasticNet model"
+                clf = ElasticNet(max_iter=10000,
+                                 **STANDARD_PARAMS['elasticnet'])
+            else:
+                raise ValueError("Invalid classifier '%s' specified." % args.classifier)
+
+        else:
+            ##
+            # Run Grid Search / 10xv on training/dev set
+            start = time.time()
+            print "== Finding optimal classifier using Grid Search =="
+            params, clf = train_optimal_classifier(train_X, train_y,
+                                                   classifier=args.classifier,
+                                                   rfseed=args.rfseed,
+                                                   quickmode=args.quickmode)
+            print "Optimal parameters: " + json.dumps(params, indent=4)
+            if hasattr(clf, "support_vectors_"):
+                print 'Number of support vectors: %d' % len(clf.support_vectors_)
+            print "Took %.2f minutes to train" % ((time.time() - start) / 60.0)
+
+        if hasattr(clf, 'random_state'):
+            clf.set_params(random_state = args.rfseed)
+        clf.fit(train_X, train_y)
+        params = clf.get_params()
+
 
     ##
     # Set up evaluation function
@@ -353,7 +376,8 @@ def standard_experiment(train_df, test_df, feature_names, args):
     train_df[result_label] = train_pred
 
     print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
-    ndcg_train = eval_func(train_df)
+    # ndcg_train = eval_func(train_df)
+    ndcg_train = eval_func(train_df[train_df.parent_nchildren >= args.min_posts_ndcg])
     for i, score in enumerate(ndcg_train, start=1):
         print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(train_y, train_pred)
@@ -367,7 +391,8 @@ def standard_experiment(train_df, test_df, feature_names, args):
     test_df[result_label] = test_pred
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
-    ndcg_test = eval_func(test_df)
+    # ndcg_test = eval_func(test_df)
+    ndcg_test = eval_func(test_df[test_df.parent_nchildren >= args.min_posts_ndcg])
     for i, score in enumerate(ndcg_test, start=1):
         print '\tNDCG@%d: %.5f' % (i, score)
     print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
@@ -528,6 +553,9 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--classifier', default='svr',
                         type=str, choices=['svr', 'rf', 'elasticnet', 'baseline'],
                         help="Classifier (SVR or Random Forest or Elastic Net).")
+
+    parser.add_argument('--stock', dest='stock_params', action='store_true',
+                        help="Use standard params instead of CV search")
 
     parser.add_argument('--rfseed', dest='rfseed',
                         default=42, type=int,
