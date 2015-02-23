@@ -143,7 +143,7 @@ def crossdomain_experiment(home_df, test_df, feature_names,
     home_df[result_label] = np.zeros(len(home_df))
     test_df[result_label] = np.zeros(len(test_df))
 
-    test_X = test_df.filter(feature_names).as_matrix().astype(np.float) # test data
+    test_X_master = test_df.filter(feature_names).as_matrix().astype(np.float) # test data
     test_y = test_df.filter([target]).as_matrix().astype(np.float) # ground truth
     test_y = test_y.reshape((-1,))
 
@@ -200,13 +200,14 @@ def crossdomain_experiment(home_df, test_df, feature_names,
 
         print "Training set: %d examples" % (train_X.shape[0],)
         print "Dev set: %d examples" % (dev_X.shape[0],)
-        print "Test set: %d examples" % (test_X.shape[0],)
+        print "Test set: %d examples" % (test_X_master.shape[0],)
 
         ##
         # Preprocessing: scale data, keep SVM happy
         scaler = preprocessing.StandardScaler()
         train_X = scaler.fit_transform(train_X) # faster than fit, transform separately
-        test_X = scaler.transform(test_X)
+        dev_X = scaler.transform(dev_X) # scale dev set
+        test_X = scaler.transform(test_X_master) # scale test set
 
         ##
         # Build classifier from pre-specified parameters
@@ -239,17 +240,19 @@ def crossdomain_experiment(home_df, test_df, feature_names,
         test_df[result_label] += (1.0/cv_folds)*test_pred
 
 
-    print 'Performance on dev data (NDCG with %s weighting)' % args.ndcg_weight
-    ndcg_dev = eval_func(home_df)
+    print 'Performance on dev data (NDCG with %s weighting, min %d comments)' % (args.ndcg_weight, args.min_posts_ndcg)
+    # ndcg_dev = eval_func(home_df)
+    ndcg_dev = eval_func(home_df[home_df.parent_nchildren >= args.min_posts_ndcg])
     for i, score in enumerate(ndcg_dev, start=1):
         print '\tNDCG@%d: %.5f' % (i, score)
-    print 'Karma MSE: %.5f' % mean_squared_error(dev_y, dev_pred)
+    # print 'Karma MSE: %.5f' % mean_squared_error(dev_y, dev_pred)
 
-    print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
-    ndcg_test = eval_func(test_df)
+    print 'Performance on test data (NDCG with %s weighting, min %d comments)' % (args.ndcg_weight, args.min_posts_ndcg)
+    ndcg_test = eval_func(test_df[test_df.parent_nchildren >= args.min_posts_ndcg])
+    # ndcg_test = eval_func(test_df)
     for i, score in enumerate(ndcg_test, start=1):
         print '\tNDCG@%d: %.5f' % (i, score)
-    print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
+    # print 'Karma MSE: %.5f' % mean_squared_error(test_y, test_pred)
 
     mu = np.mean(train_nsubs)
     s = np.std(train_nsubs)
@@ -341,7 +344,7 @@ def standard_experiment(train_df, test_df, feature_names, args):
     if args.classifier != 'baseline':
         train_pred = clf.predict(train_X)
     else: # baseline: post order
-        train_pred = train_df['position_rank']
+        train_pred = -1*train_df['position_rank']
     train_df[result_label] = train_pred
 
     print 'Performance on training data (NDCG with %s weighting)' % args.ndcg_weight
@@ -355,7 +358,7 @@ def standard_experiment(train_df, test_df, feature_names, args):
     if args.classifier != 'baseline':
         test_pred = clf.predict(test_X)
     else: # baseline: post order
-        test_pred = test_df['position_rank']
+        test_pred = -1*test_df['position_rank']
     test_df[result_label] = test_pred
 
     print 'Performance on test data (NDCG with %s weighting)' % args.ndcg_weight
@@ -511,7 +514,7 @@ if __name__ == '__main__':
 
     parser.add_argument("--fg", "--featuregroup", type=str,
                         dest="feature_groups",
-                        nargs="+", default=['all'],
+                        nargs="+", default=[],
                         help="Pre-specified feature groups, as given in settings.py")
 
     parser.add_argument('-t', '--target', dest='target',
@@ -532,6 +535,10 @@ if __name__ == '__main__':
     parser.add_argument('-l', '-L', '--limit-data', dest='limit_data',
                         default=0, type=int,
                         help="Limit to # of submissions")
+
+    parser.add_argument('--min_posts_ndcg', dest='min_posts_ndcg',
+                        default=3,
+                        help="Minimum number of posts to include in NDCG calculation.")
 
     parser.add_argument('--tf', dest='test_fraction',
                         default=0.9, type=float,
