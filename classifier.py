@@ -150,6 +150,8 @@ def crossdomain_experiment(home_df, test_df, feature_names,
     print "Selected %d features" % (len(feature_names),)
     print 'Features: %s' % (' '.join(feature_names))
 
+    feature_importances = pd.DataFrame(index=feature_names)
+
     ##
     # Set up evaluation function
     if args.ndcg_weight == 'target':
@@ -239,6 +241,13 @@ def crossdomain_experiment(home_df, test_df, feature_names,
         test_pred = clf.predict(test_X)
         test_df[result_label] += (1.0/cv_folds)*test_pred
 
+        ##
+        # Extract feature importances
+        features, importance = get_feature_importance(clf, args.classifier,
+                                             feature_names=feature_names,
+                                             sorted=True)
+        feature_importances["fold_%d" % foldidx] = pd.Series(data=importance, index=features)
+
 
     print 'Performance on dev data (NDCG with %s weighting, min %d comments)' % (args.ndcg_weight, args.min_posts_ndcg)
     # ndcg_dev = eval_func(home_df)
@@ -274,6 +283,11 @@ def crossdomain_experiment(home_df, test_df, feature_names,
         outdf = pd.concat([home_df[fields], test_df[fields]],
                           ignore_index=True)
         outdf.to_hdf(saveas, 'data')
+
+        # Save feature importances
+        saveas = args.savename + ".featurescores.h5"
+        print "== Recording feature scores to %s ==" % saveas
+        feature_importances.to_hdf(saveas, 'data')
 
         # Save NDCG calculations
         dd = {'k':range(1,max_K+1), 'method':[args.ndcg_weight]*max_K,
@@ -547,10 +561,10 @@ if __name__ == '__main__':
                         help="Pre-specified feature groups, as given in settings.py")
 
     parser.add_argument('-t', '--target', dest='target',
-                        type=str, default='score',
+                        type=str, default='log_score',
                         help="Training objective (e.g. score)")
 
-    parser.add_argument('-c', '--classifier', default='svr',
+    parser.add_argument('-c', '--classifier', default='rf',
                         type=str, choices=['svr', 'rf', 'elasticnet', 'baseline'],
                         help="Classifier (SVR or Random Forest or Elastic Net).")
 
