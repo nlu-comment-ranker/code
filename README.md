@@ -16,3 +16,13 @@ Reddit Comment Ranker
 Each of these packages can be installed using `pip install`, but we also recommend using the
 [Anaconda](http://continuum.io/downloads) Python distribution, which includes many of these
 dependencies by default.
+
+## Demo
+To learn more about how to use our code, run `ipython notebook`, and view the `Demo.ipynb` notebook.
+
+The following files are executable:
+* `scraper.py`
+* `extractor.py`
+* `rankmodel.py`
+
+To learn more about each of these scripts, append the `--help` flag when running a script.
