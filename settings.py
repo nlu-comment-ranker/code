@@ -1,6 +1,6 @@
 ##
 # Various constants and parameter lists
-# used to configure classifier.py
+# used to configure rankmodel.py
 
 GRIDSEARCH_PARAMS = {
     "svr": {
