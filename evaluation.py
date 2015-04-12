@@ -1,13 +1,7 @@
 ##
 # Social Web Comment Ranking
-# CS224U Spring 2014
-# Stanford University
 #
 # Evaluation Function
-#
-# Sammy Nguyen
-# Ian Tenney
-# June 8, 2014
 ##
 
 import numpy as np
@@ -162,3 +156,13 @@ def calc_y_yerr(evaldf, max_K):
     y = evaldf[cols].mean()
     yerr = evaldf[cols].std() / np.sqrt(evaldf.shape[0] - 1)
     return y, yerr
+
+def calc_y_yerr_weighted(evaldf, max_K):
+    cols = gen_k_labels(max_K)
+    y = np.average(df[cols], weights=df.ncomments, axis=0)
+
+    variance = np.average((df[cols]-y)**2, weights=df.ncomments, axis=0)
+    std = np.sqrt(variance)
+    yerr = std / np.sqrt(evaldf.shape[0] - 1)
+    return y, yerr
+

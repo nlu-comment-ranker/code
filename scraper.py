@@ -212,10 +212,10 @@ def merge_model(model, session):
 if __name__ == '__main__':
     parser = ArgumentParser(description='Scrape comments of Reddit self-posts')
     parser.add_argument('-u', '--username', type=str,
-                        default='nlu_comment_ranker',
+                        required=True
                         help='reddit username')
     parser.add_argument('-p', '--password', type=str,
-                        default='cardinal_cs224u',
+                        required=True
                         help='reddit password')
     parser.add_argument('-s', '--subreddit', type=str,
                         default='askscience',
@@ -244,8 +244,7 @@ if __name__ == '__main__':
     #                     help='List of subreddits to scrape')
     args = parser.parse_args()
 
-    user_agent = ("NLU project: comment scraper "
-                  "by /u/nlu_comment_ranker (smnguyen@stanford.edu)")
+    user_agent = ("Reddit comment ranker: data scraper")
     r = praw.Reddit(user_agent=user_agent)
     r.login(username=args.username, password=args.password)
 

@@ -1,12 +1,7 @@
 ##
 # Social Web Comment Ranking
-# CS224U Spring 2014
-# Stanford University 
 #
 # Database interface, using SQLAlchemy
-#
-# Ian F. Tenney
-# May 10, 2014
 ##
 
 from sqlalchemy import *

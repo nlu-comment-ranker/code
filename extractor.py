@@ -2,14 +2,9 @@
 
 ##
 # Social Web Comment Ranking
-# CS224U Spring 2014
-# Stanford University
 #
 # Feature Extraction
 # extraction engine
-#
-# Ian F. Tenney
-# June 1, 2014
 ##
 
 import sys, time

@@ -2,14 +2,8 @@
 
 ##
 # Social Web Comment Ranking
-# CS224U Spring 2014
-# Stanford University
 #
 # Classifier Engine
-#
-# Sammy Nguyen
-# Ian Tenney
-# June 2, 2014
 ##
 
 import os, sys, re, json
