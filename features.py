@@ -1,13 +1,8 @@
 ##
 # Social Web Comment Ranking
-# CS224U Spring 2014
-# Stanford University
 #
 # Feature Extraction
 # methods and classes
-#
-# Ian F. Tenney
-# May 24, 2014
 ##
 
 # import collections
