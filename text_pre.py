@@ -1,14 +1,8 @@
 ##
 # Social Web Comment Ranking
-# CS224U Spring 2014
-# Stanford University 
 #
 # Feature Extraction
 # Text Preprocessing Methods
-#
-# Ian F. Tenney
-# Narek Tovmasyan
-# June 7, 2014
 ##
 
 import re
